@@ -98,6 +98,9 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.56.2
         version: 5.74.4(react@19.2.3)
+      '@types/react-beautiful-dnd':
+        specifier: ^13.1.8
+        version: 13.1.8
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -175,7 +178,7 @@ importers:
         specifier: ^0.8.0
         version: 0.8.0(vite@6.3.4(@types/node@22.14.1)(jiti@1.21.7)(yaml@2.7.1))
       '@eslint/js':
-        specifier: ^9.9.0
+        specifier: latest
         version: 9.24.0
       '@tailwindcss/typography':
         specifier: ^0.5.15
@@ -1394,6 +1397,9 @@ packages:
 
   '@types/phoenix@1.6.7':
     resolution: {integrity: sha512-oN9ive//QSBkf19rfDv45M7eZPi0eEXylht2OLEXicu5b4KoQ1OzXIw+xDSGWxSxe1JmepRR/ZH283vsu518/Q==}
+
+  '@types/react-beautiful-dnd@13.1.8':
+    resolution: {integrity: sha512-E3TyFsro9pQuK4r8S/OL6G99eq7p8v29sX0PM7oT8Z+PJfZvSQTx4zTQbUJ+QZXioAF0e7TGBEcA1XhYhCweyQ==}
 
   '@types/react-dom@19.2.3':
     resolution: {integrity: sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ==}
@@ -3733,6 +3739,10 @@ snapshots:
       undici-types: 6.21.0
 
   '@types/phoenix@1.6.7': {}
+
+  '@types/react-beautiful-dnd@13.1.8':
+    dependencies:
+      '@types/react': 19.2.8
 
   '@types/react-dom@19.2.3(@types/react@19.2.8)':
     dependencies:

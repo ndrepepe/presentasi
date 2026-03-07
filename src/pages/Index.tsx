@@ -233,7 +233,7 @@ export default function Index() {
                     </h3>
                     <DragDropContext onDragEnd={onDragEnd}>
                       <Droppable droppableId="files">
-                        {(provided) => (
+                        {(provided: any) => (
                           <div 
                             {...provided.droppableProps}
                             ref={provided.innerRef}
@@ -241,7 +241,7 @@ export default function Index() {
                           >
                             {files.map((file, index) => (
                               <Draggable key={file.id} draggableId={file.id} index={index}>
-                                {(provided) => (
+                                {(provided: any) => (
                                   <div
                                     ref={provided.innerRef}
                                     {...provided.draggableProps}
