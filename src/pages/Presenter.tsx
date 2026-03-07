@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { ExcelViewer } from '@/components/ExcelViewer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
-import { Maximize, Minimize, Smartphone, ChevronLeft, ChevronRight, X, Wifi, WifiOff } from 'lucide-react';
+import { Maximize, Minimize, Smartphone, ChevronLeft, ChevronRight, X, Wifi, WifiOff, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
@@ -16,6 +16,7 @@ export default function Presenter() {
   const [showControls, setShowControls] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -38,7 +39,6 @@ export default function Presenter() {
 
     fetchSession();
 
-    // Subscribe to changes with better error handling
     const channel = supabase
       .channel(`session-${sessionId}`)
       .on(
@@ -50,20 +50,14 @@ export default function Presenter() {
           filter: `id=eq.${sessionId}`,
         },
         (payload) => {
-          console.log("Realtime update received:", payload);
           if (payload.new && typeof payload.new.current_slide === 'number') {
             setCurrentSlide(payload.new.current_slide);
-            // Update session data in case files or total_slides changed
             setSession((prev: any) => ({ ...prev, ...payload.new }));
           }
         }
       )
       .subscribe((status) => {
-        console.log("Realtime status:", status);
         setIsConnected(status === 'SUBSCRIBED');
-        if (status === 'CHANNEL_ERROR') {
-          toast.error("Gagal menghubungkan ke server Realtime");
-        }
       });
 
     return () => {
@@ -91,32 +85,39 @@ export default function Presenter() {
       .eq('id', sessionId);
     
     if (error) {
-      toast.error("Gagal memperbarui slide di server");
+      toast.error("Gagal memperbarui slide");
     }
   };
 
   const nextSlide = () => {
     if (!session || currentSlide >= session.files.length - 1) return;
     const next = currentSlide + 1;
-    setCurrentSlide(next); // Optimistic update
+    setCurrentSlide(next);
     updateSlideInDB(next);
   };
 
   const prevSlide = () => {
     if (!session || currentSlide <= 0) return;
     const prev = currentSlide - 1;
-    setCurrentSlide(prev); // Optimistic update
+    setCurrentSlide(prev);
     updateSlideInDB(prev);
+  };
+
+  const remoteUrl = `${window.location.origin}/remote/${sessionId}`;
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(remoteUrl);
+    setCopied(true);
+    toast.success("Link disalin");
+    setTimeout(() => setCopied(false), 2000);
   };
 
   if (!session) return <div className="min-h-screen bg-black flex items-center justify-center text-white">Loading...</div>;
 
   const currentFile = session.files[currentSlide];
-  const remoteUrl = `${window.location.origin}/remote/${sessionId}`;
 
   return (
     <div className="fixed inset-0 bg-black overflow-hidden flex flex-col">
-      {/* Main Content */}
       <div className="flex-1 relative flex items-center justify-center p-4 md:p-8 min-h-0">
         <AnimatePresence mode="wait">
           <motion.div
@@ -143,7 +144,6 @@ export default function Presenter() {
           </motion.div>
         </AnimatePresence>
 
-        {/* Navigation Overlay */}
         <div className="absolute inset-y-0 left-0 w-20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
           <Button variant="ghost" size="icon" onClick={prevSlide} className="text-white bg-black/20 hover:bg-black/40 rounded-full w-12 h-12">
             <ChevronLeft className="w-8 h-8" />
@@ -156,7 +156,6 @@ export default function Presenter() {
         </div>
       </div>
 
-      {/* Controls Bar */}
       <AnimatePresence>
         {showControls && (
           <motion.div
@@ -189,10 +188,25 @@ export default function Presenter() {
                   <Smartphone className="w-4 h-4" />
                   Remote
                 </Button>
-                <div className="absolute bottom-full right-0 mb-4 p-4 bg-white rounded-xl shadow-2xl hidden group-hover:block">
-                  <div className="text-black text-center space-y-2">
-                    <QRCodeSVG value={remoteUrl} size={150} />
-                    <p className="text-xs font-bold">Scan dengan HP</p>
+                <div className="absolute bottom-full right-0 mb-4 p-4 bg-white rounded-xl shadow-2xl hidden group-hover:block w-48">
+                  <div className="text-black text-center space-y-3">
+                    <div className="flex justify-center">
+                      <QRCodeSVG value={remoteUrl} size={140} />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-gray-500 break-all leading-tight">
+                        {remoteUrl}
+                      </p>
+                      <Button 
+                        variant="secondary" 
+                        size="sm" 
+                        className="w-full h-7 text-[10px] gap-1"
+                        onClick={copyToClipboard}
+                      >
+                        {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                        Salin Link
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -205,7 +219,6 @@ export default function Presenter() {
         )}
       </AnimatePresence>
 
-      {/* Floating Toggle */}
       <button
         onClick={() => setShowControls(!showControls)}
         className="fixed bottom-4 right-4 w-8 h-8 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white/50 hover:text-white transition-all z-50"

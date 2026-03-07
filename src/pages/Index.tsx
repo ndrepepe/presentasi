@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Upload, Play, Trash2, FileImage, FileSpreadsheet, Smartphone, Loader2, GripVertical } from 'lucide-react';
+import { Upload, Play, Trash2, FileImage, FileSpreadsheet, Smartphone, Loader2, GripVertical, Copy, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { QRCodeSVG } from 'qrcode.react';
 import { uploadFileToStorage, deleteFileFromStorage, FileMetadata } from '@/utils/storage';
@@ -18,6 +18,7 @@ export default function Index() {
   const [files, setFiles] = useState<PresentationFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -64,11 +65,9 @@ export default function Index() {
         toast.success(`File ${file.name} berhasil diunggah`);
       }
 
-      // Simpan ke database
       const updatedFiles = [...files, ...newFiles];
       
       if (sessionId) {
-        // Update sesi yang ada
         const { error } = await supabase
           .from('presentation_sessions')
           .update({
@@ -79,7 +78,6 @@ export default function Index() {
 
         if (error) throw error;
       } else {
-        // Buat sesi baru
         const { data, error } = await supabase
           .from('presentation_sessions')
           .insert({
@@ -102,7 +100,6 @@ export default function Index() {
     } finally {
       setIsUploading(false);
       setUploadProgress(0);
-      // Reset input file
       e.target.value = '';
     }
   };
@@ -123,7 +120,6 @@ export default function Index() {
 
       if (updateError) throw updateError;
 
-      // Hapus dari storage (opsional, tapi disarankan)
       const fileName = fileToRemove.url.split('/').pop();
       if (fileName) {
         await deleteFileFromStorage(fileName);
@@ -141,7 +137,6 @@ export default function Index() {
       toast.error("Unggah file terlebih dahulu");
       return;
     }
-    // Reset current slide to 0 (first slide) when starting presentation
     resetCurrentSlide();
     navigate(`/presenter/${sessionId}`);
   };
@@ -167,7 +162,6 @@ export default function Index() {
     
     setFiles(items);
     
-    // Update database
     try {
       const { error } = await supabase
         .from('presentation_sessions')
@@ -178,9 +172,18 @@ export default function Index() {
       toast.success("Urutan file diperbarui");
     } catch (error: any) {
       toast.error("Gagal memperbarui urutan: " + error.message);
-      // Revert on error
       setFiles(files);
     }
+  };
+
+  const remoteUrl = sessionId ? `${window.location.origin}/remote/${sessionId}` : '';
+
+  const copyToClipboard = () => {
+    if (!remoteUrl) return;
+    navigator.clipboard.writeText(remoteUrl);
+    setCopied(true);
+    toast.success("Link disalin ke clipboard");
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -320,13 +323,24 @@ export default function Index() {
                     <>
                       <div className="mb-4 p-2 bg-white rounded-lg">
                         <QRCodeSVG
-                          value={`${window.location.origin}/remote/${sessionId}`}
+                          value={remoteUrl}
                           size={140}
                         />
                       </div>
-                      <p className="text-sm text-gray-300">
-                        Scan QR untuk membuka Remote
-                      </p>
+                      <div className="space-y-2 w-full">
+                        <p className="text-xs text-gray-400 break-all bg-black/30 p-2 rounded border border-white/5">
+                          {remoteUrl}
+                        </p>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-full gap-2 text-xs h-8 bg-white/5 border-white/10 text-gray-300"
+                          onClick={copyToClipboard}
+                        >
+                          {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                          {copied ? 'Tersalin' : 'Salin Link Remote'}
+                        </Button>
+                      </div>
                     </>
                   ) : (
                     <div className="py-8">
