@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { ChevronLeft, ChevronRight, Smartphone, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Smartphone, RefreshCw, ZoomIn, ZoomOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
@@ -10,6 +10,7 @@ export default function Remote() {
   const [session, setSession] = useState<any>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [zoomLevel, setZoomLevel] = useState(100);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -71,6 +72,18 @@ export default function Remote() {
     }
   };
 
+  const handleZoomIn = () => {
+    setZoomLevel(prev => Math.min(prev + 10, 200));
+  };
+
+  const handleZoomOut = () => {
+    setZoomLevel(prev => Math.max(prev - 10, 50));
+  };
+
+  const handleZoomReset = () => {
+    setZoomLevel(100);
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center text-white p-6">
@@ -82,7 +95,7 @@ export default function Remote() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col p-6">
-      <header className="flex items-center justify-between mb-12">
+      <header className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
           <Smartphone className="w-6 h-6 text-blue-400" />
           <h1 className="font-bold text-xl">Remote Control</h1>
@@ -92,8 +105,45 @@ export default function Remote() {
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col justify-center gap-8">
-        <div className="aspect-video bg-white/5 rounded-2xl border border-white/10 flex items-center justify-center overflow-hidden relative">
+      <main className="flex-1 flex flex-col justify-center gap-6">
+        {/* Zoom Controls */}
+        <div className="flex items-center justify-center gap-4 mb-4">
+          <Button 
+            variant="outline" 
+            size="icon"
+            onClick={handleZoomOut}
+            className="bg-white/5 border-white/10 hover:bg-white/10 text-white rounded-full w-10 h-10"
+          >
+            <ZoomOut className="w-4 h-4" />
+          </Button>
+          
+          <div className="flex flex-col items-center">
+            <span className="text-sm font-medium">{zoomLevel}%</span>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={handleZoomReset}
+              className="text-xs text-gray-400 hover:text-white h-6 px-2"
+            >
+              Reset
+            </Button>
+          </div>
+          
+          <Button 
+            variant="outline" 
+            size="icon"
+            onClick={handleZoomIn}
+            className="bg-white/5 border-white/10 hover:bg-white/10 text-white rounded-full w-10 h-10"
+          >
+            <ZoomIn className="w-4 h-4" />
+          </Button>
+        </div>
+
+        {/* Slide Preview */}
+        <div 
+          className="aspect-video bg-white/5 rounded-2xl border border-white/10 flex items-center justify-center overflow-hidden relative"
+          style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'center' }}
+        >
           {session.files[currentSlide].type === 'image' ? (
             <img
               src={session.files[currentSlide].url}
@@ -108,6 +158,7 @@ export default function Remote() {
           </div>
         </div>
 
+        {/* Navigation Controls */}
         <div className="grid grid-cols-2 gap-4 h-48">
           <Button 
             variant="outline" 
@@ -130,7 +181,7 @@ export default function Remote() {
         </div>
       </main>
 
-      <footer className="mt-12 text-center">
+      <footer className="mt-8 text-center">
         <p className="text-gray-500 text-xs uppercase tracking-widest">
           Connected to Session: {sessionId?.slice(0, 8)}
         </p>
