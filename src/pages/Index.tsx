@@ -5,10 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Upload, Play, Trash2, FileImage, FileSpreadsheet, Smartphone, Loader2 } from 'lucide-react';
+import { Upload, Play, Trash2, FileImage, FileSpreadsheet, Smartphone, Loader2, GripVertical } from 'lucide-react';
 import { toast } from 'sonner';
 import { QRCodeSVG } from 'qrcode.react';
 import { uploadFileToStorage, deleteFileFromStorage, FileMetadata } from '@/utils/storage';
+import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 
 interface PresentationFile extends FileMetadata {}
 
@@ -143,6 +144,31 @@ export default function Index() {
     navigate(`/presenter/${sessionId}`);
   };
 
+  const onDragEnd = async (result: DropResult) => {
+    if (!result.destination || !sessionId) return;
+    
+    const items = Array.from(files);
+    const [reorderedItem] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, reorderedItem);
+    
+    setFiles(items);
+    
+    // Update database
+    try {
+      const { error } = await supabase
+        .from('presentation_sessions')
+        .update({ files: items })
+        .eq('id', sessionId);
+      
+      if (error) throw error;
+      toast.success("Urutan file diperbarui");
+    } catch (error: any) {
+      toast.error("Gagal memperbarui urutan: " + error.message);
+      // Revert on error
+      setFiles(files);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white p-6 md:p-12">
       <div className="max-w-4xl mx-auto">
@@ -205,31 +231,53 @@ export default function Index() {
                     <h3 className="text-sm font-medium text-gray-400">
                       File Terunggah ({files.length})
                     </h3>
-                    <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar pr-2">
-                      {files.map((file) => (
-                        <div
-                          key={file.id}
-                          className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10"
-                        >
-                          <div className="flex items-center gap-3 overflow-hidden">
-                            {file.type === 'image' ? (
-                              <FileImage className="w-4 h-4 text-blue-400 shrink-0" />
-                            ) : (
-                              <FileSpreadsheet className="w-4 h-4 text-green-400 shrink-0" />
-                            )}
-                            <span className="text-sm truncate text-gray-200">{file.name}</span>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeFile(file)}
-                            className="text-gray-500 hover:text-red-400 hover:bg-red-400/10"
+                    <DragDropContext onDragEnd={onDragEnd}>
+                      <Droppable droppableId="files">
+                        {(provided) => (
+                          <div 
+                            {...provided.droppableProps}
+                            ref={provided.innerRef}
+                            className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar pr-2"
                           >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
+                            {files.map((file, index) => (
+                              <Draggable key={file.id} draggableId={file.id} index={index}>
+                                {(provided) => (
+                                  <div
+                                    ref={provided.innerRef}
+                                    {...provided.draggableProps}
+                                    className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10"
+                                  >
+                                    <div className="flex items-center gap-3 overflow-hidden">
+                                      <div 
+                                        {...provided.dragHandleProps}
+                                        className="cursor-grab active:cursor-grabbing"
+                                      >
+                                        <GripVertical className="w-4 h-4 text-gray-500" />
+                                      </div>
+                                      {file.type === 'image' ? (
+                                        <FileImage className="w-4 h-4 text-blue-400 shrink-0" />
+                                      ) : (
+                                        <FileSpreadsheet className="w-4 h-4 text-green-400 shrink-0" />
+                                      )}
+                                      <span className="text-sm truncate text-gray-200">{file.name}</span>
+                                    </div>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => removeFile(file)}
+                                      className="text-gray-500 hover:text-red-400 hover:bg-red-400/10"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                  </div>
+                                )}
+                              </Draggable>
+                            ))}
+                            {provided.placeholder}
+                          </div>
+                        )}
+                      </Droppable>
+                    </DragDropContext>
                   </div>
                 )}
               </div>
