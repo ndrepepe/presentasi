@@ -93,7 +93,7 @@ export default function Remote() {
         <div className="aspect-video bg-white/5 rounded-2xl border border-white/10 flex items-center justify-center overflow-hidden relative">
           {session.files[currentSlide].type === 'image' ? (
             <img
-              src={session.files[currentSlide].content}
+              src={session.files[currentSlide].url}
               alt="Preview"
               className="w-full h-full object-contain opacity-50"
             />

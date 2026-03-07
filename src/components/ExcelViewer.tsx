@@ -2,18 +2,23 @@ import React from 'react';
 import * as XLSX from 'xlsx';
 
 interface ExcelViewerProps {
-  data: string; // Base64 or binary string
+  data: string[]; // Array of file URLs from storage
 }
 
 export const ExcelViewer: React.FC<ExcelViewerProps> = ({ data }) => {
   const [sheets, setSheets] = React.useState<{ name: string; data: any[][] }[]>([]);
   const [activeSheet, setActiveSheet] = React.useState(0);
+  const [isLoading, setIsLoading] = React.useState(false);
 
-  React.useEffect(() => {
+  const loadExcelFile = async (url: string) => {
+    setIsLoading(true);
     try {
-      // If it's a data URL, strip the prefix
-      const base64Data = data.includes(',') ? data.split(',')[1] : data;
-      const workbook = XLSX.read(base64Data, { type: 'base64' });
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error('Failed to fetch Excel file');
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
       const sheetData = workbook.SheetNames.map((name) => ({
         name,
         data: XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1 }) as any[][],
@@ -21,10 +26,21 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({ data }) => {
       setSheets(sheetData);
     } catch (error) {
       console.error("Error reading Excel file:", error);
+      setSheets([]);
+    } finally {
+      setIsLoading(false);
     }
-  }, [data]);
+  };
 
-  if (sheets.length === 0) return <div className="p-4 text-white">Loading Excel data...</div>;
+  React.useEffect(() => {
+    if (data && data.length > 0 && data[activeSheet]) {
+      loadExcelFile(data[activeSheet]);
+    }
+  }, [data, activeSheet]);
+
+  if (isLoading) return <div className="p-4 text-white">Loading Excel data...</div>;
+
+  if (sheets.length === 0) return <div className="p-4 text-white">No Excel data available</div>;
 
   const formatCellValue = (value: any) => {
     if (typeof value === 'number') {

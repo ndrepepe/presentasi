@@ -108,13 +108,13 @@ export default function Presenter() {
           >
             {currentFile.type === 'image' ? (
               <img
-                src={currentFile.content}
+                src={currentFile.url}
                 alt={currentFile.name}
                 className="max-w-full max-h-full object-contain shadow-2xl rounded-lg"
               />
             ) : (
               <div className="w-full h-full overflow-hidden flex flex-col">
-                <ExcelViewer data={currentFile.content} />
+                <ExcelViewer data={[currentFile.url]} />
               </div>
             )}
           </motion.div>
@@ -183,4 +183,3 @@ export default function Presenter() {
     </div>
   );
 }
-

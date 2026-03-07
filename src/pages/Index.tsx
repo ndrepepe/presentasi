@@ -8,18 +8,15 @@ import { Label } from '@/components/ui/label';
 import { Upload, Play, Trash2, FileImage, FileSpreadsheet, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 import { QRCodeSVG } from 'qrcode.react';
+import { uploadFileToStorage, deleteFileFromStorage, FileMetadata } from '@/utils/storage';
 
-interface PresentationFile {
-  id: string;
-  name: string;
-  type: 'image' | 'excel';
-  content: string; // Base64
-}
+interface PresentationFile extends FileMetadata {}
 
 export default function Index() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [files, setFiles] = useState<PresentationFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const navigate = useNavigate();
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -27,65 +24,70 @@ export default function Index() {
     if (!uploadedFiles) return;
 
     setIsUploading(true);
+    setUploadProgress(0);
     const newFiles: PresentationFile[] = [];
 
     for (let i = 0; i < uploadedFiles.length; i++) {
       const file = uploadedFiles[i];
-      const reader = new FileReader();
-
-      const promise = new Promise<void>((resolve) => {
-        reader.onload = (event) => {
-          const content = event.target?.result as string;
-          
-          newFiles.push({
-            id: Math.random().toString(36).substr(2, 9),
-            name: file.name,
-            type: file.type.includes('image') ? 'image' : 'excel',
-            content: content,
-          });
-          resolve();
-        };
-      });
-
-      if (file.type.includes('image')) {
-        reader.readAsDataURL(file);
-      } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
-        reader.readAsDataURL(file);
-      } else {
-        toast.error(`File ${file.name} tidak didukung.`);
-        continue;
+      try {
+        // Show progress
+        setUploadProgress(Math.round(((i + 1) / uploadedFiles.length) * 100));
+        
+        // Upload to storage
+        const fileMetadata = await uploadFileToStorage(file);
+        newFiles.push(fileMetadata);
+        
+        toast.success(`File ${file.name} berhasil diupload`);
+      } catch (error: any) {
+        console.error('Upload error:', error);
+        toast.error(`Gagal upload file ${file.name}: ${error.message}`);
       }
-      
-      await promise;
     }
 
     if (newFiles.length === 0) {
       setIsUploading(false);
+      setUploadProgress(0);
       return;
     }
 
-    // Simpan ke Supabase
-    const { data, error } = await supabase
-      .from('presentation_sessions')
-      .insert({
-        files: newFiles,
-        total_slides: newFiles.length,
-        current_slide: 0
-      })
-      .select()
-      .single();
+    // Save to database
+    try {
+      const { data, error } = await supabase
+        .from('presentation_sessions')
+        .insert({
+          files: newFiles,
+          total_slides: newFiles.length,
+          current_slide: 0
+        })
+        .select()
+        .single();
 
-    if (error) {
-      console.error('Error saving to Supabase:', error);
-      toast.error("Gagal menyimpan file ke database.");
+      if (error) {
+        console.error('Database save error:', error);
+        toast.error("Gagal menyimpan data ke database.");
+        // Optionally delete uploaded files from storage if database save fails
+        for (const file of newFiles) {
+          const fileName = file.url.split('/').pop();
+          if (fileName) {
+            await deleteFileFromStorage(fileName);
+          }
+        }
+        setIsUploading(false);
+        setUploadProgress(0);
+        return;
+      }
+
+      setSessionId(data.id);
+      setFiles(prevFiles => [...prevFiles, ...newFiles]);
       setIsUploading(false);
-      return;
+      setUploadProgress(0);
+      toast.success(`${newFiles.length} file berhasil ditambahkan ke presentasi.`);
+    } catch (error: any) {
+      console.error('Database save error:', error);
+      toast.error("Gagal menyimpan data ke database.");
+      setIsUploading(false);
+      setUploadProgress(0);
     }
-
-    setSessionId(data.id);
-    setFiles(newFiles);
-    setIsUploading(false);
-    toast.success(`${newFiles.length} file berhasil ditambahkan.`);
   };
 
   useEffect(() => {
@@ -110,42 +112,54 @@ export default function Index() {
     fetchLatestSession();
   }, []);
 
-  const removeFile = async (id: string) => {
+  const removeFile = async (fileToRemove: PresentationFile) => {
     if (!sessionId) {
       toast.error("Tidak ada sesi aktif. Silakan upload file terlebih dahulu.");
       return;
     }
 
-    const { data, error } = await supabase
-      .from('presentation_sessions')
-      .select('files')
-      .eq('id', sessionId)
-      .single();
+    try {
+      // Remove from database first
+      const { data, error } = await supabase
+        .from('presentation_sessions')
+        .select('files')
+        .eq('id', sessionId)
+        .single();
 
-    if (error) {
-      console.error('Error fetching session:', error);
-      toast.error("Gagal menghapus file.");
-      return;
+      if (error) {
+        console.error('Error fetching session:', error);
+        toast.error("Gagal menghapus file.");
+        return;
+      }
+
+      const filteredFiles = (data.files || []).filter(file => file.id !== fileToRemove.id);
+      
+      const { error: updateError } = await supabase
+        .from('presentation_sessions')
+        .update({ 
+          files: filteredFiles,
+          total_slides: filteredFiles.length
+        })
+        .eq('id', sessionId);
+
+      if (updateError) {
+        console.error('Error updating session:', updateError);
+        toast.error("Gagal memperbarui sesi di database.");
+        return;
+      }
+
+      // Delete from storage
+      const fileName = fileToRemove.url.split('/').pop();
+      if (fileName) {
+        await deleteFileFromStorage(fileName);
+      }
+
+      setFiles(filteredFiles);
+      toast.success("File berhasil dihapus.");
+    } catch (error: any) {
+      console.error('Remove file error:', error);
+      toast.error("Gagal menghapus file: " + error.message);
     }
-
-    const filteredFiles = data.files.filter(file => file.id !== id);
-    
-    const { error: updateError } = await supabase
-      .from('presentation_sessions')
-      .update({ 
-        files: filteredFiles,
-        total_slides: filteredFiles.length
-      })
-      .eq('id', sessionId);
-
-    if (updateError) {
-      console.error('Error updating session:', updateError);
-      toast.error("Gagal memperbarui sesi di database.");
-      return;
-    }
-
-    setFiles(filteredFiles);
-    toast.success("File berhasil dihapus.");
   };
 
   const startPresentation = async () => {
@@ -211,7 +225,7 @@ export default function Index() {
                     </div>
                     <div>
                       <p className="font-medium">
-                        {isUploading ? 'Uploading...' : 'Click to upload or drag and drop'}
+                        {isUploading ? `Uploading... ${uploadProgress}%` : 'Click to upload or drag and drop'}
                       </p>
                       <p className="text-sm text-gray-500 mt-1">
                         Images or Excel files (max 10MB each)
@@ -238,11 +252,14 @@ export default function Index() {
                               <FileSpreadsheet className="w-4 h-4 text-green-400 shrink-0" />
                             )}
                             <span className="text-sm truncate">{file.name}</span>
+                            <span className="text-xs text-gray-500">
+                              {(file.size / 1024 / 1024).toFixed(2)} MB
+                            </span>
                           </div>
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => removeFile(file.id)}
+                            onClick={() => removeFile(file)}
                             className="text-gray-500 hover:text-red-400"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -323,6 +340,7 @@ export default function Index() {
           <CardContent>
             <ol className="space-y-3 list-decimal list-inside text-gray-300">
               <li>Upload your presentation files (images or Excel sheets)</li>
+              <li>Files are automatically saved to Supabase Storage</li>
               <li>Scan the QR code with your phone to open the remote control</li>
               <li>Click "Start Presentation" to begin</li>
               <li>Use the remote control to navigate slides</li>
