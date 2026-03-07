@@ -9,7 +9,7 @@ import { Upload, Play, Trash2, FileImage, FileSpreadsheet, Smartphone, Loader2, 
 import { toast } from 'sonner';
 import { QRCodeSVG } from 'qrcode.react';
 import { uploadFileToStorage, deleteFileFromStorage, FileMetadata } from '@/utils/storage';
-import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 
 interface PresentationFile extends FileMetadata {}
 
@@ -247,7 +247,7 @@ export default function Index() {
                     </h3>
                     <DragDropContext onDragEnd={onDragEnd}>
                       <Droppable droppableId="files">
-                        {(provided: any) => (
+                        {(provided) => (
                           <div
                             {...provided.droppableProps}
                             ref={provided.innerRef}
@@ -255,7 +255,7 @@ export default function Index() {
                           >
                             {files.map((file, index) => (
                               <Draggable key={file.id} draggableId={file.id} index={index}>
-                                {(provided: any, snapshot: any) => (
+                                {(provided, snapshot) => (
                                   <div
                                     ref={provided.innerRef}
                                     {...provided.draggableProps}
