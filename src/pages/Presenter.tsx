@@ -96,7 +96,7 @@ export default function Presenter() {
   return (
     <div className="fixed inset-0 bg-black overflow-hidden flex flex-col">
       {/* Main Content */}
-      <div className="flex-1 relative flex items-center justify-center p-4 md:p-8">
+      <div className="flex-1 relative flex items-center justify-center p-4 md:p-8 min-h-0">
         <AnimatePresence mode="wait">
           <motion.div
             key={currentSlide}
@@ -104,7 +104,7 @@ export default function Presenter() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.3 }}
-            className="w-full h-full flex items-center justify-center"
+            className="w-full h-full flex items-center justify-center overflow-hidden"
           >
             {currentFile.type === 'image' ? (
               <img
@@ -113,7 +113,9 @@ export default function Presenter() {
                 className="max-w-full max-h-full object-contain shadow-2xl rounded-lg"
               />
             ) : (
-              <ExcelViewer data={currentFile.content} />
+              <div className="w-full h-full overflow-hidden flex flex-col">
+                <ExcelViewer data={currentFile.content} />
+              </div>
             )}
           </motion.div>
         </AnimatePresence>

@@ -35,14 +35,14 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({ data }) => {
 
   return (
     <div className="flex flex-col h-full w-full bg-white/5 backdrop-blur-md rounded-xl overflow-hidden border border-white/10">
-      <div className="flex border-b border-white/10 bg-black/20 overflow-x-auto">
+      <div className="flex shrink-0 border-b border-white/10 bg-black/20 overflow-x-auto">
         {sheets.map((sheet, idx) => (
           <button
             key={idx}
             onClick={() => setActiveSheet(idx)}
             className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
-              activeSheet === idx 
-                ? 'bg-blue-600 text-white' 
+              activeSheet === idx
+                ? 'bg-blue-600 text-white'
                 : 'text-gray-400 hover:text-white hover:bg-white/5'
             }`}
           >
@@ -50,8 +50,17 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({ data }) => {
           </button>
         ))}
       </div>
-      <div className="flex-1 overflow-auto p-4">
+      <div className="flex-1 overflow-auto p-4 custom-scrollbar">
         <table className="w-full border-collapse text-sm text-white">
+          <thead className="sticky top-0 bg-[#1a1a1a] z-10">
+            <tr className="border-b border-white/20">
+              {sheets[activeSheet].data[0]?.map((_, cellIndex) => (
+                <th key={cellIndex} className="p-2 text-left font-bold border-r border-white/10 bg-white/5">
+                  {String.fromCharCode(65 + cellIndex)}
+                </th>
+              ))}
+            </tr>
+          </thead>
           <tbody>
             {sheets[activeSheet].data.map((row, rowIndex) => (
               <tr key={rowIndex} className="border-b border-white/5 hover:bg-white/5">
