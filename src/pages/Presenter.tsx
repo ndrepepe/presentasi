@@ -4,8 +4,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { ExcelViewer } from '@/components/ExcelViewer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
-import { Maximize, Minimize, Smartphone, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Maximize, Minimize, Smartphone, ChevronLeft, ChevronRight, X, Wifi, WifiOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 export default function Presenter() {
   const { sessionId } = useParams();
@@ -14,6 +15,7 @@ export default function Presenter() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [showControls, setShowControls] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -26,7 +28,7 @@ export default function Presenter() {
         .single();
 
       if (error) {
-        console.error(error);
+        console.error("Error fetching session:", error);
         navigate('/');
         return;
       }
@@ -36,7 +38,7 @@ export default function Presenter() {
 
     fetchSession();
 
-    // Subscribe to changes
+    // Subscribe to changes with better error handling
     const channel = supabase
       .channel(`session-${sessionId}`)
       .on(
@@ -48,10 +50,21 @@ export default function Presenter() {
           filter: `id=eq.${sessionId}`,
         },
         (payload) => {
-          setCurrentSlide(payload.new.current_slide);
+          console.log("Realtime update received:", payload);
+          if (payload.new && typeof payload.new.current_slide === 'number') {
+            setCurrentSlide(payload.new.current_slide);
+            // Update session data in case files or total_slides changed
+            setSession((prev: any) => ({ ...prev, ...payload.new }));
+          }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log("Realtime status:", status);
+        setIsConnected(status === 'SUBSCRIBED');
+        if (status === 'CHANNEL_ERROR') {
+          toast.error("Gagal menghubungkan ke server Realtime");
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -70,22 +83,30 @@ export default function Presenter() {
     }
   };
 
-  const nextSlide = async () => {
-    if (!session || currentSlide >= session.files.length - 1) return;
-    const next = currentSlide + 1;
-    await supabase
+  const updateSlideInDB = async (newIndex: number) => {
+    if (!sessionId) return;
+    const { error } = await supabase
       .from('presentation_sessions')
-      .update({ current_slide: next })
+      .update({ current_slide: newIndex })
       .eq('id', sessionId);
+    
+    if (error) {
+      toast.error("Gagal memperbarui slide di server");
+    }
   };
 
-  const prevSlide = async () => {
+  const nextSlide = () => {
+    if (!session || currentSlide >= session.files.length - 1) return;
+    const next = currentSlide + 1;
+    setCurrentSlide(next); // Optimistic update
+    updateSlideInDB(next);
+  };
+
+  const prevSlide = () => {
     if (!session || currentSlide <= 0) return;
     const prev = currentSlide - 1;
-    await supabase
-      .from('presentation_sessions')
-      .update({ current_slide: prev })
-      .eq('id', sessionId);
+    setCurrentSlide(prev); // Optimistic update
+    updateSlideInDB(prev);
   };
 
   if (!session) return <div className="min-h-screen bg-black flex items-center justify-center text-white">Loading...</div>;
@@ -100,22 +121,24 @@ export default function Presenter() {
         <AnimatePresence mode="wait">
           <motion.div
             key={currentSlide}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.05 }}
             transition={{ duration: 0.3 }}
             className="w-full h-full flex items-center justify-center overflow-hidden"
           >
-            {currentFile.type === 'image' ? (
+            {currentFile?.type === 'image' ? (
               <img
                 src={currentFile.url}
                 alt={currentFile.name}
                 className="max-w-full max-h-full object-contain shadow-2xl rounded-lg"
               />
-            ) : (
+            ) : currentFile ? (
               <div className="w-full h-full overflow-hidden flex flex-col">
                 <ExcelViewer data={[currentFile.url]} />
               </div>
+            ) : (
+              <div className="text-white">Slide tidak ditemukan</div>
             )}
           </motion.div>
         </AnimatePresence>
@@ -146,8 +169,17 @@ export default function Presenter() {
               <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="text-gray-400 hover:text-white">
                 <X className="w-5 h-5" />
               </Button>
-              <div className="text-sm font-medium text-gray-400">
-                Slide {currentSlide + 1} of {session.total_slides}
+              <div className="flex flex-col">
+                <div className="text-sm font-medium text-white">
+                  Slide {currentSlide + 1} of {session.total_slides}
+                </div>
+                <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider">
+                  {isConnected ? (
+                    <span className="text-green-400 flex items-center gap-1"><Wifi className="w-3 h-3" /> Live</span>
+                  ) : (
+                    <span className="text-red-400 flex items-center gap-1"><WifiOff className="w-3 h-3" /> Offline</span>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -155,7 +187,7 @@ export default function Presenter() {
               <div className="group relative">
                 <Button variant="outline" size="sm" className="bg-white/5 border-white/10 text-white gap-2">
                   <Smartphone className="w-4 h-4" />
-                  Remote Control
+                  Remote
                 </Button>
                 <div className="absolute bottom-full right-0 mb-4 p-4 bg-white rounded-xl shadow-2xl hidden group-hover:block">
                   <div className="text-black text-center space-y-2">
@@ -166,7 +198,7 @@ export default function Presenter() {
               </div>
               <Button variant="outline" size="sm" onClick={toggleFullscreen} className="bg-white/5 border-white/10 text-white gap-2">
                 {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
-                {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+                {isFullscreen ? 'Exit' : 'Full'}
               </Button>
             </div>
           </motion.div>
