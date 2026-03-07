@@ -141,7 +141,21 @@ export default function Index() {
       toast.error("Unggah file terlebih dahulu");
       return;
     }
+    // Reset current slide to 0 (first slide) when starting presentation
+    resetCurrentSlide();
     navigate(`/presenter/${sessionId}`);
+  };
+
+  const resetCurrentSlide = async () => {
+    if (!sessionId) return;
+    try {
+      await supabase
+        .from('presentation_sessions')
+        .update({ current_slide: 0 })
+        .eq('id', sessionId);
+    } catch (error: any) {
+      console.error("Error resetting slide:", error.message);
+    }
   };
 
   const onDragEnd = async (result: DropResult) => {
@@ -256,6 +270,9 @@ export default function Index() {
                                       >
                                         <GripVertical className="w-4 h-4 text-gray-500" />
                                       </div>
+                                      <span className="text-xs font-bold text-gray-400 bg-gray-800 rounded-full w-6 h-6 flex items-center justify-center">
+                                        {index + 1}
+                                      </span>
                                       {file.type === 'image' ? (
                                         <FileImage className="w-4 h-4 text-blue-400 shrink-0" />
                                       ) : (
