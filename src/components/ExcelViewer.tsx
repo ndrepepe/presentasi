@@ -53,7 +53,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({ data }) => {
       <div className="flex-1 overflow-auto p-4 custom-scrollbar">
         <table className="w-full border-collapse text-sm text-white">
           <tbody>
-            {sheets[activeSheet].data.slice(1).map((row, rowIndex) => (
+            {sheets[activeSheet].data.map((row, rowIndex) => (
               <tr key={rowIndex} className="border-b border-white/5 hover:bg-white/5">
                 {row.map((cell, cellIndex) => (
                   <td key={cellIndex} className="p-2 border-r border-white/5 min-w-[100px]">
