@@ -234,18 +234,20 @@ export default function Index() {
                     <DragDropContext onDragEnd={onDragEnd}>
                       <Droppable droppableId="files">
                         {(provided: any) => (
-                          <div 
+                          <div
                             {...provided.droppableProps}
                             ref={provided.innerRef}
                             className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar pr-2"
                           >
                             {files.map((file, index) => (
                               <Draggable key={file.id} draggableId={file.id} index={index}>
-                                {(provided: any) => (
+                                {(provided: any, snapshot: any) => (
                                   <div
                                     ref={provided.innerRef}
                                     {...provided.draggableProps}
-                                    className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10"
+                                    className={`flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10 ${
+                                      snapshot.isDragging ? 'shadow-lg bg-white/10' : ''
+                                    }`}
                                   >
                                     <div className="flex items-center gap-3 overflow-hidden">
                                       <div 

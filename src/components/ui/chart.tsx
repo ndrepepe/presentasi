@@ -338,7 +338,8 @@ function getPayloadConfigFromPayload(
   }
 
   if (key in payloadPayload && typeof payloadPayload[key] === "string") {
-    return config[payloadPayload[key] as keyof ChartConfig];
+    const payloadKey = payloadPayload[key as keyof typeof payloadPayload] as string;
+    return config[payloadKey as keyof ChartConfig];
   }
 
   return undefined;
