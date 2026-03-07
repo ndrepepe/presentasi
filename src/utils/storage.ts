@@ -16,58 +16,67 @@ export const uploadFileToStorage = async (file: File): Promise<FileMetadata> => 
     const fileExtension = file.name.split('.').pop();
     const fileName = `${fileId}.${fileExtension}`;
 
-    console.log('Uploading file:', fileName, 'to bucket: presentasi');
+    // Tentukan content type yang tepat untuk Excel jika tidak terdeteksi otomatis
+    let contentType = file.type;
+    if (!contentType) {
+      if (file.name.endsWith('.xlsx')) {
+        contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      } else if (file.name.endsWith('.xls')) {
+        contentType = 'application/vnd.ms-excel';
+      } else {
+        contentType = 'application/octet-stream';
+      }
+    }
+
+    console.log('Uploading file:', fileName, 'to bucket: presentasi', 'Type:', contentType);
 
     // Upload to Supabase Storage
     const { data, error } = await supabase.storage
-      .from('presentasi') // Use the correct bucket name
+      .from('presentasi')
       .upload(fileName, file, {
-        contentType: file.type,
+        contentType: contentType,
         upsert: false,
       });
 
     if (error) {
       console.error('Storage upload error:', error);
-      throw new Error(`Failed to upload file: ${error.message}`);
+      // Jika error RLS, berikan pesan yang lebih manusiawi
+      if (error.message.includes('row-level security')) {
+        throw new Error('Izin penyimpanan ditolak. Pastikan kebijakan RLS untuk bucket "presentasi" sudah diatur di Supabase.');
+      }
+      throw new Error(`Gagal upload ke storage: ${error.message}`);
     }
 
     console.log('Upload successful:', data);
 
     // Get public URL
     const { data: publicUrlData } = supabase.storage
-      .from('presentasi') // Use the correct bucket name
+      .from('presentasi')
       .getPublicUrl(fileName);
-
-    console.log('Public URL:', publicUrlData.publicUrl);
 
     return {
       id: fileId,
       name: file.name,
-      type: file.type.includes('image') ? 'image' : 'excel',
+      type: (file.type.includes('image') || ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExtension?.toLowerCase() || '')) ? 'image' : 'excel',
       url: publicUrlData.publicUrl,
       size: file.size,
-      contentType: file.type,
+      contentType: contentType,
     };
   } catch (error) {
-    console.error('Upload error:', error);
+    console.error('Upload error details:', error);
     throw error;
   }
 };
 
 export const deleteFileFromStorage = async (fileName: string): Promise<void> => {
   try {
-    console.log('Deleting file from storage:', fileName);
-    
     const { error } = await supabase.storage
-      .from('presentasi') // Use the correct bucket name
+      .from('presentasi')
       .remove([fileName]);
 
     if (error) {
-      console.error('Storage delete error:', error);
-      throw new Error(`Failed to delete file: ${error.message}`);
+      throw new Error(`Gagal menghapus file: ${error.message}`);
     }
-    
-    console.log('File deleted successfully');
   } catch (error) {
     console.error('Delete error:', error);
     throw error;

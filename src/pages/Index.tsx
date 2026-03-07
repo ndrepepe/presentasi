@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Upload, Play, Trash2, FileImage, FileSpreadsheet, Smartphone } from 'lucide-react';
+import { Upload, Play, Trash2, FileImage, FileSpreadsheet, Smartphone, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { QRCodeSVG } from 'qrcode.react';
 import { uploadFileToStorage, deleteFileFromStorage, FileMetadata } from '@/utils/storage';
@@ -17,86 +17,7 @@ export default function Index() {
   const [files, setFiles] = useState<PresentationFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadError, setUploadError] = useState<string | null>(null);
   const navigate = useNavigate();
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const uploadedFiles = e.target.files;
-    if (!uploadedFiles) return;
-
-    setIsUploading(true);
-    setUploadProgress(0);
-    setUploadError(null);
-    const newFiles: PresentationFile[] = [];
-
-    for (let i = 0; i < uploadedFiles.length; i++) {
-      const file = uploadedFiles[i];
-      try {
-        // Show progress
-        setUploadProgress(Math.round(((i + 1) / uploadedFiles.length) * 100));
-        
-        console.log('Processing file:', file.name);
-        
-        // Upload to storage
-        const fileMetadata = await uploadFileToStorage(file);
-        newFiles.push(fileMetadata);
-        
-        console.log('File uploaded successfully:', fileMetadata);
-        toast.success(`File ${file.name} berhasil diupload`);
-      } catch (error: any) {
-        console.error('Upload error:', error);
-        setUploadError(`Gagal upload file ${file.name}: ${error.message}`);
-        toast.error(`Gagal upload file ${file.name}: ${error.message}`);
-      }
-    }
-
-    if (newFiles.length === 0) {
-      setIsUploading(false);
-      setUploadProgress(0);
-      return;
-    }
-
-    // Save to database
-    try {
-      console.log('Saving to database...');
-      const { data, error } = await supabase
-        .from('presentation_sessions')
-        .insert({
-          files: newFiles,
-          total_slides: newFiles.length,
-          current_slide: 0
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Database save error:', error);
-        toast.error("Gagal menyimpan data ke database.");
-        // Optionally delete uploaded files from storage if database save fails
-        for (const file of newFiles) {
-          const fileName = file.url.split('/').pop();
-          if (fileName) {
-            await deleteFileFromStorage(fileName);
-          }
-        }
-        setIsUploading(false);
-        setUploadProgress(0);
-        return;
-      }
-
-      console.log('Database save successful:', data);
-      setSessionId(data.id);
-      setFiles(prevFiles => [...prevFiles, ...newFiles]);
-      setIsUploading(false);
-      setUploadProgress(0);
-      toast.success(`${newFiles.length} file berhasil ditambahkan ke presentasi.`);
-    } catch (error: any) {
-      console.error('Database save error:', error);
-      toast.error("Gagal menyimpan data ke database.");
-      setIsUploading(false);
-      setUploadProgress(0);
-    }
-  };
 
   useEffect(() => {
     const fetchLatestSession = async () => {
@@ -106,7 +27,7 @@ export default function Index() {
           .select('id, files')
           .order('created_at', { ascending: false })
           .limit(1)
-          .single();
+          .maybeSingle();
 
         if (error) {
           console.error('Error fetching session:', error);
@@ -124,27 +45,72 @@ export default function Index() {
     fetchLatestSession();
   }, []);
 
-  const removeFile = async (fileToRemove: PresentationFile) => {
-    if (!sessionId) {
-      toast.error("Tidak ada sesi aktif. Silakan upload file terlebih dahulu.");
-      return;
-    }
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const uploadedFiles = e.target.files;
+    if (!uploadedFiles || uploadedFiles.length === 0) return;
+
+    setIsUploading(true);
+    setUploadProgress(0);
+    const newFiles: PresentationFile[] = [];
 
     try {
-      // Remove from database first
-      const { data, error } = await supabase
-        .from('presentation_sessions')
-        .select('files')
-        .eq('id', sessionId)
-        .single();
-
-      if (error) {
-        console.error('Error fetching session:', error);
-        toast.error("Gagal menghapus file.");
-        return;
+      for (let i = 0; i < uploadedFiles.length; i++) {
+        const file = uploadedFiles[i];
+        setUploadProgress(Math.round(((i + 1) / uploadedFiles.length) * 100));
+        
+        const fileMetadata = await uploadFileToStorage(file);
+        newFiles.push(fileMetadata);
+        toast.success(`File ${file.name} berhasil diunggah`);
       }
 
-      const filteredFiles = (data.files || []).filter(file => file.id !== fileToRemove.id);
+      // Simpan ke database
+      const updatedFiles = [...files, ...newFiles];
+      
+      if (sessionId) {
+        // Update sesi yang ada
+        const { error } = await supabase
+          .from('presentation_sessions')
+          .update({
+            files: updatedFiles,
+            total_slides: updatedFiles.length
+          })
+          .eq('id', sessionId);
+
+        if (error) throw error;
+      } else {
+        // Buat sesi baru
+        const { data, error } = await supabase
+          .from('presentation_sessions')
+          .insert({
+            files: newFiles,
+            total_slides: newFiles.length,
+            current_slide: 0
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        setSessionId(data.id);
+      }
+
+      setFiles(updatedFiles);
+      toast.success("Sesi presentasi diperbarui");
+    } catch (error: any) {
+      console.error('Upload/Save error:', error);
+      toast.error(error.message || "Terjadi kesalahan saat memproses file");
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+      // Reset input file
+      e.target.value = '';
+    }
+  };
+
+  const removeFile = async (fileToRemove: PresentationFile) => {
+    if (!sessionId) return;
+
+    try {
+      const filteredFiles = files.filter(file => file.id !== fileToRemove.id);
       
       const { error: updateError } = await supabase
         .from('presentation_sessions')
@@ -154,42 +120,27 @@ export default function Index() {
         })
         .eq('id', sessionId);
 
-      if (updateError) {
-        console.error('Error updating session:', updateError);
-        toast.error("Gagal memperbarui sesi di database.");
-        return;
-      }
+      if (updateError) throw updateError;
 
-      // Delete from storage
+      // Hapus dari storage (opsional, tapi disarankan)
       const fileName = fileToRemove.url.split('/').pop();
       if (fileName) {
         await deleteFileFromStorage(fileName);
       }
 
       setFiles(filteredFiles);
-      toast.success("File berhasil dihapus.");
+      toast.success("File dihapus");
     } catch (error: any) {
-      console.error('Remove file error:', error);
       toast.error("Gagal menghapus file: " + error.message);
     }
   };
 
-  const startPresentation = async () => {
-    if (!sessionId) {
-      toast.error("Tidak ada sesi aktif. Silakan upload file terlebih dahulu.");
+  const startPresentation = () => {
+    if (!sessionId || files.length === 0) {
+      toast.error("Unggah file terlebih dahulu");
       return;
     }
-
-    if (files.length === 0) {
-      toast.error("Tidak ada file untuk dipresentasikan.");
-      return;
-    }
-
-    try {
-      navigate(`/presenter/${sessionId}`);
-    } catch (error: any) {
-      toast.error("Gagal memulai sesi: " + error.message);
-    }
+    navigate(`/presenter/${sessionId}`);
   };
 
   return (
@@ -200,25 +151,24 @@ export default function Index() {
             Quick Kiwi Flip
           </h1>
           <p className="text-gray-400 text-lg">
-            Upload your presentation files and control them remotely
+            Presentasi instan dengan kendali jarak jauh
           </p>
         </header>
 
         <div className="grid md:grid-cols-2 gap-8 mb-12">
-          {/* Upload Section */}
           <Card className="bg-white/5 border-white/10">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Upload className="w-5 h-5" />
-                Upload Files
+              <CardTitle className="flex items-center gap-2 text-white">
+                <Upload className="w-5 h-5 text-blue-400" />
+                Unggah File
               </CardTitle>
-              <CardDescription>
-                Support for images and Excel files
+              <CardDescription className="text-gray-400">
+                Mendukung Gambar dan Excel (.xlsx)
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="border-2 border-dashed border-white/20 rounded-xl p-8 text-center hover:border-blue-500/50 transition-colors">
+                <div className="border-2 border-dashed border-white/20 rounded-xl p-8 text-center hover:border-blue-500/50 transition-colors relative">
                   <Input
                     type="file"
                     id="file-upload"
@@ -230,34 +180,32 @@ export default function Index() {
                   />
                   <Label
                     htmlFor="file-upload"
-                    className="cursor-pointer flex flex-col items-center gap-3"
+                    className={`cursor-pointer flex flex-col items-center gap-3 ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center">
-                      <Upload className="w-8 h-8 text-blue-400" />
+                      {isUploading ? (
+                        <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
+                      ) : (
+                        <Upload className="w-8 h-8 text-blue-400" />
+                      )}
                     </div>
                     <div>
-                      <p className="font-medium">
-                        {isUploading ? `Uploading... ${uploadProgress}%` : 'Click to upload or drag and drop'}
+                      <p className="font-medium text-white">
+                        {isUploading ? `Mengunggah... ${uploadProgress}%` : 'Klik untuk unggah file'}
                       </p>
                       <p className="text-sm text-gray-500 mt-1">
-                        Images or Excel files (max 10MB each)
+                        Maksimal 10MB per file
                       </p>
                     </div>
                   </Label>
                 </div>
 
-                {uploadError && (
-                  <div className="p-3 bg-red-500/20 border border-red-500/50 rounded-lg">
-                    <p className="text-red-400 text-sm">{uploadError}</p>
-                  </div>
-                )}
-
                 {files.length > 0 && (
                   <div className="space-y-2 mt-4">
                     <h3 className="text-sm font-medium text-gray-400">
-                      Uploaded Files ({files.length})
+                      File Terunggah ({files.length})
                     </h3>
-                    <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+                    <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar pr-2">
                       {files.map((file) => (
                         <div
                           key={file.id}
@@ -269,16 +217,13 @@ export default function Index() {
                             ) : (
                               <FileSpreadsheet className="w-4 h-4 text-green-400 shrink-0" />
                             )}
-                            <span className="text-sm truncate">{file.name}</span>
-                            <span className="text-xs text-gray-500">
-                              {(file.size / 1024 / 1024).toFixed(2)} MB
-                            </span>
+                            <span className="text-sm truncate text-gray-200">{file.name}</span>
                           </div>
                           <Button
                             variant="ghost"
                             size="icon"
                             onClick={() => removeFile(file)}
-                            className="text-gray-500 hover:text-red-400"
+                            className="text-gray-500 hover:text-red-400 hover:bg-red-400/10"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -291,79 +236,77 @@ export default function Index() {
             </CardContent>
           </Card>
 
-          {/* Remote Control Section */}
           <Card className="bg-white/5 border-white/10">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Smartphone className="w-5 h-5" />
+              <CardTitle className="flex items-center gap-2 text-white">
+                <Smartphone className="w-5 h-5 text-purple-400" />
                 Remote Control
               </CardTitle>
-              <CardDescription>
-                Control your presentation from any device
+              <CardDescription className="text-gray-400">
+                Kendalikan slide dari HP Anda
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
-                <div className="text-center p-6 bg-white/5 rounded-xl border border-white/10">
+                <div className="text-center p-6 bg-white/5 rounded-xl border border-white/10 flex flex-col items-center">
                   {sessionId ? (
                     <>
-                      <div className="mb-4 flex justify-center">
+                      <div className="mb-4 p-2 bg-white rounded-lg">
                         <QRCodeSVG
                           value={`${window.location.origin}/remote/${sessionId}`}
-                          size={150}
-                          className="rounded-lg"
+                          size={140}
                         />
                       </div>
-                      <p className="text-sm text-gray-400">
-                        Scan with your phone to control
-                      </p>
-                      <p className="text-xs text-gray-500 mt-2 font-mono">
-                        {sessionId.slice(0, 8)}...
+                      <p className="text-sm text-gray-300">
+                        Scan QR untuk membuka Remote
                       </p>
                     </>
                   ) : (
-                    <p className="text-gray-500">
-                      Upload files first to generate a remote control link
-                    </p>
+                    <div className="py-8">
+                      <Smartphone className="w-12 h-12 text-gray-600 mx-auto mb-2" />
+                      <p className="text-gray-500 text-sm">
+                        Unggah file untuk membuat remote
+                      </p>
+                    </div>
                   )}
                 </div>
 
                 <Button
                   onClick={startPresentation}
-                  disabled={!sessionId || files.length === 0}
-                  className="w-full bg-blue-600 hover:bg-blue-500 text-white py-6 text-lg font-semibold rounded-xl"
+                  disabled={!sessionId || files.length === 0 || isUploading}
+                  className="w-full bg-blue-600 hover:bg-blue-500 text-white py-6 text-lg font-semibold rounded-xl transition-all active:scale-95"
                 >
                   <Play className="w-5 h-5 mr-2" />
-                  Start Presentation
+                  Mulai Presentasi
                 </Button>
-
-                {sessionId && (
-                  <div className="text-center text-sm text-gray-400">
-                    <p>Session ID: {sessionId.slice(0, 8)}...</p>
-                    <p className="text-xs mt-1">
-                      Share this ID with others to collaborate
-                    </p>
-                  </div>
-                )}
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Instructions */}
         <Card className="bg-white/5 border-white/10">
           <CardHeader>
-            <CardTitle>How to Use</CardTitle>
+            <CardTitle className="text-white text-lg">Cara Penggunaan</CardTitle>
           </CardHeader>
           <CardContent>
-            <ol className="space-y-3 list-decimal list-inside text-gray-300">
-              <li>Upload your presentation files (images or Excel sheets)</li>
-              <li>Files are automatically saved to Supabase Storage bucket 'presentasi'</li>
-              <li>Scan the QR code with your phone to open the remote control</li>
-              <li>Click "Start Presentation" to begin</li>
-              <li>Use the remote control to navigate slides</li>
-              <li>Share the session ID with collaborators</li>
-            </ol>
+            <ul className="space-y-3 text-gray-400 text-sm">
+              <li className="flex gap-3">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold">1</span>
+                Unggah gambar atau file Excel (.xlsx).
+              </li>
+              <li className="flex gap-3">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold">2</span>
+                Scan QR Code menggunakan kamera HP Anda.
+              </li>
+              <li className="flex gap-3">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold">3</span>
+                Klik "Mulai Presentasi" di laptop/PC ini.
+              </li>
+              <li className="flex gap-3">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold">4</span>
+                Gunakan tombol di HP untuk pindah slide secara real-time.
+              </li>
+            </ul>
           </CardContent>
         </Card>
       </div>
