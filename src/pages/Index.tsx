@@ -17,6 +17,7 @@ export default function Index() {
   const [files, setFiles] = useState<PresentationFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -25,6 +26,7 @@ export default function Index() {
 
     setIsUploading(true);
     setUploadProgress(0);
+    setUploadError(null);
     const newFiles: PresentationFile[] = [];
 
     for (let i = 0; i < uploadedFiles.length; i++) {
@@ -33,13 +35,17 @@ export default function Index() {
         // Show progress
         setUploadProgress(Math.round(((i + 1) / uploadedFiles.length) * 100));
         
+        console.log('Processing file:', file.name);
+        
         // Upload to storage
         const fileMetadata = await uploadFileToStorage(file);
         newFiles.push(fileMetadata);
         
+        console.log('File uploaded successfully:', fileMetadata);
         toast.success(`File ${file.name} berhasil diupload`);
       } catch (error: any) {
         console.error('Upload error:', error);
+        setUploadError(`Gagal upload file ${file.name}: ${error.message}`);
         toast.error(`Gagal upload file ${file.name}: ${error.message}`);
       }
     }
@@ -52,6 +58,7 @@ export default function Index() {
 
     // Save to database
     try {
+      console.log('Saving to database...');
       const { data, error } = await supabase
         .from('presentation_sessions')
         .insert({
@@ -77,6 +84,7 @@ export default function Index() {
         return;
       }
 
+      console.log('Database save successful:', data);
       setSessionId(data.id);
       setFiles(prevFiles => [...prevFiles, ...newFiles]);
       setIsUploading(false);
@@ -92,21 +100,25 @@ export default function Index() {
 
   useEffect(() => {
     const fetchLatestSession = async () => {
-      const { data, error } = await supabase
-        .from('presentation_sessions')
-        .select('id, files')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+      try {
+        const { data, error } = await supabase
+          .from('presentation_sessions')
+          .select('id, files')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
 
-      if (error) {
-        console.error('Error fetching session:', error);
-        return;
-      }
-      
-      if (data) {
-        setSessionId(data.id);
-        setFiles(data.files || []);
+        if (error) {
+          console.error('Error fetching session:', error);
+          return;
+        }
+        
+        if (data) {
+          setSessionId(data.id);
+          setFiles(data.files || []);
+        }
+      } catch (error) {
+        console.error('Error in fetchLatestSession:', error);
       }
     };
     fetchLatestSession();
@@ -234,6 +246,12 @@ export default function Index() {
                   </Label>
                 </div>
 
+                {uploadError && (
+                  <div className="p-3 bg-red-500/20 border border-red-500/50 rounded-lg">
+                    <p className="text-red-400 text-sm">{uploadError}</p>
+                  </div>
+                )}
+
                 {files.length > 0 && (
                   <div className="space-y-2 mt-4">
                     <h3 className="text-sm font-medium text-gray-400">
@@ -340,7 +358,7 @@ export default function Index() {
           <CardContent>
             <ol className="space-y-3 list-decimal list-inside text-gray-300">
               <li>Upload your presentation files (images or Excel sheets)</li>
-              <li>Files are automatically saved to Supabase Storage</li>
+              <li>Files are automatically saved to Supabase Storage bucket 'presentasi'</li>
               <li>Scan the QR code with your phone to open the remote control</li>
               <li>Click "Start Presentation" to begin</li>
               <li>Use the remote control to navigate slides</li>

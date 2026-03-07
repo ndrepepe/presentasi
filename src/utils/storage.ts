@@ -16,9 +16,11 @@ export const uploadFileToStorage = async (file: File): Promise<FileMetadata> => 
     const fileExtension = file.name.split('.').pop();
     const fileName = `${fileId}.${fileExtension}`;
 
+    console.log('Uploading file:', fileName, 'to bucket: presentasi');
+
     // Upload to Supabase Storage
-    const { error } = await supabase.storage
-      .from('presentation-files')
+    const { data, error } = await supabase.storage
+      .from('presentasi') // Use the correct bucket name
       .upload(fileName, file, {
         contentType: file.type,
         upsert: false,
@@ -29,10 +31,14 @@ export const uploadFileToStorage = async (file: File): Promise<FileMetadata> => 
       throw new Error(`Failed to upload file: ${error.message}`);
     }
 
+    console.log('Upload successful:', data);
+
     // Get public URL
     const { data: publicUrlData } = supabase.storage
-      .from('presentation-files')
+      .from('presentasi') // Use the correct bucket name
       .getPublicUrl(fileName);
+
+    console.log('Public URL:', publicUrlData.publicUrl);
 
     return {
       id: fileId,
@@ -50,14 +56,18 @@ export const uploadFileToStorage = async (file: File): Promise<FileMetadata> => 
 
 export const deleteFileFromStorage = async (fileName: string): Promise<void> => {
   try {
+    console.log('Deleting file from storage:', fileName);
+    
     const { error } = await supabase.storage
-      .from('presentation-files')
+      .from('presentasi') // Use the correct bucket name
       .remove([fileName]);
 
     if (error) {
       console.error('Storage delete error:', error);
       throw new Error(`Failed to delete file: ${error.message}`);
     }
+    
+    console.log('File deleted successfully');
   } catch (error) {
     console.error('Delete error:', error);
     throw error;
