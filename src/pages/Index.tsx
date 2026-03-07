@@ -58,9 +58,28 @@ export default function Index() {
       await promise;
     }
 
-    setFiles((prev) => [...prev, ...newFiles]);
+    // Simpan ke Supabase
+    const { data, error } = await supabase
+      .from('presentation_sessions')
+      .insert({
+        files: newFiles,
+        total_slides: newFiles.length,
+        current_slide: 0
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error saving to Supabase:', error);
+      toast.error("Gagal menyimpan file ke database.");
+      setIsUploading(false);
+      return;
+    }
+
+    setSessionId(data.id);
+    setFiles(newFiles);
     setIsUploading(false);
-    toast.success(`${newFiles.length} file berhasil ditambahkan.`);
+    toast.success(`${newFiles.length} file berhasil ditambahkan dan disimpan.`);
   };
 
   const removeFile = (id: string) => {
@@ -73,20 +92,13 @@ export default function Index() {
       return;
     }
 
-    try {
-      const { data, error } = await supabase
-        .from('presentation_sessions')
-        .insert({
-          files: files,
-          total_slides: files.length,
-          current_slide: 0
-        })
-        .select()
-        .single();
+    if (!sessionId) {
+      toast.error("Tidak ada sesi aktif. Silakan upload file terlebih dahulu.");
+      return;
+    }
 
-      if (error) throw error;
-      
-      navigate(`/presenter/${data.id}`);
+    try {
+      navigate(`/presenter/${sessionId}`);
     } catch (error: any) {
       toast.error("Gagal memulai sesi: " + error.message);
     }
