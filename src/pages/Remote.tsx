@@ -65,6 +65,9 @@ export default function Remote() {
 
     if (error) {
       toast.error("Gagal memindahkan slide");
+    } else {
+      // Update local state immediately for better UX
+      setCurrentSlide(newIndex);
     }
   };
 
