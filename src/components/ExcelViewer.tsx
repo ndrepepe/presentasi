@@ -26,6 +26,13 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({ data }) => {
 
   if (sheets.length === 0) return <div className="p-4 text-white">Loading Excel data...</div>;
 
+  const formatCellValue = (value: any) => {
+    if (typeof value === 'number') {
+      return new Intl.NumberFormat('id-ID').format(value);
+    }
+    return value?.toString() || '';
+  };
+
   return (
     <div className="flex flex-col h-full w-full bg-white/5 backdrop-blur-md rounded-xl overflow-hidden border border-white/10">
       <div className="flex border-b border-white/10 bg-black/20 overflow-x-auto">
@@ -50,7 +57,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({ data }) => {
               <tr key={rowIndex} className="border-b border-white/5 hover:bg-white/5">
                 {row.map((cell, cellIndex) => (
                   <td key={cellIndex} className="p-2 border-r border-white/5 min-w-[100px]">
-                    {cell?.toString() || ''}
+                    {formatCellValue(cell)}
                   </td>
                 ))}
               </tr>
