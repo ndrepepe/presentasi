@@ -40,7 +40,7 @@ export default function Index() {
           newFiles.push({
             id: Math.random().toString(36).substr(2, 9),
             name: file.name,
-            type: file.type.includes('image') ? 'image' : 'excel',
+            type: file.type.includes('image')? 'image' : 'excel',
             content: content,
           });
           resolve();
@@ -66,14 +66,14 @@ export default function Index() {
 
     // Simpan ke Supabase
     const { data, error } = await supabase
-      .from('presentation_sessions')
-      .insert({
+     .from('presentation_sessions')
+     .insert({
         files: newFiles,
         total_slides: newFiles.length,
         current_slide: 0
       })
-      .select()
-      .single();
+     .select()
+     .single();
 
     if (error) {
       console.error('Error saving to Supabase:', error);
@@ -91,11 +91,11 @@ export default function Index() {
   useEffect(() => {
     const fetchLatestSession = async () => {
       const { data, error } = await supabase
-        .from('presentation_sessions')
-        .order('created_at', { ascending: false } as any) // <-- Fixed TypeScript error
-        .limit(1)
-        .select('id, files')
-        .single();
+       .from('presentation_sessions')
+       .select('id, files')
+       .order('created_at', { ascending: false }) // <-- Fixed order method placement
+       .limit(1)
+       .single();
 
       if (error) {
         console.error('Error fetching session:', error);
@@ -117,10 +117,10 @@ export default function Index() {
     }
 
     const { data, error } = await supabase
-      .from('presentation_sessions')
-      .select('*')
-      .eq('id', sessionId)
-      .single();
+     .from('presentation_sessions')
+     .select('*')
+     .eq('id', sessionId)
+     .single();
 
     if (error) {
       console.error('Error fetching session:', error);
@@ -128,14 +128,14 @@ export default function Index() {
       return;
     }
 
-    const filteredFiles = data.files.filter(file => file.id !== id);
+    const filteredFiles = data.files.filter(file => file.id!== id);
     const { error: updateError } = await supabase
-      .from('presentation_sessions')
-      .update({ 
+     .from('presentation_sessions')
+     .update({ 
         files: filteredFiles,
         total_slides: filteredFiles.length
       })
-      .eq('id', sessionId);
+     .eq('id', sessionId);
 
     if (updateError) {
       console.error('Error updating session:', updateError);
@@ -167,12 +167,12 @@ export default function Index() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white p-6 md:p-12">
-      {/* ... (UI elements) */}
+      {/*... (UI elements) */}
 
       {files.map((file) => (
         <div key={file.id} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10">
           <div className="flex items-center gap-3 overflow-hidden">
-            {file.type === 'image' ? <FileImage className="w-4 h-4 text-blue-400 shrink-0" /> : <FileSpreadsheet className="w-4 h-4 text-green-400 shrink-0" />}
+            {file.type === 'image'? <FileImage className="w-4 h-4 text-blue-400 shrink-0" /> : <FileSpreadsheet className="w-4 h-4 text-green-400 shrink-0" />}
             <span className="text-sm truncate">{file.name}</span>
           </div>
           <Button variant="ghost" size="icon" onClick={() => removeFile(file.id)} className="text-gray-500 hover:text-red-400">
