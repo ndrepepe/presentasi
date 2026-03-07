@@ -1,9 +1,10 @@
 {
   "installCommand": "pnpm install --no-frozen-lockfile",
-  "routes": [
+  "framework": "vite",
+  "rewrites": [
     {
-      "src": "/(.*)",
-      "dest": "/index.html"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
