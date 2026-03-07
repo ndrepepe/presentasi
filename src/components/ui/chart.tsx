@@ -337,7 +337,8 @@ function getPayloadConfigFromPayload(
     return undefined;
   }
 
-  if (key in payloadPayload && typeof payloadPayload[key] === "string") {
+  // Memperbaiki error dengan menambahkan type assertion yang tepat
+  if (key in payloadPayload && typeof payloadPayload[key as keyof typeof payloadPayload] === "string") {
     const payloadKey = payloadPayload[key as keyof typeof payloadPayload] as string;
     return config[payloadKey as keyof ChartConfig];
   }
