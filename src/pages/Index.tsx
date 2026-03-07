@@ -40,7 +40,7 @@ export default function Index() {
           newFiles.push({
             id: Math.random().toString(36).substr(2, 9),
             name: file.name,
-            type: file.type.includes('image')? 'image' : 'excel',
+            type: file.type.includes('image') ? 'image' : 'excel',
             content: content,
           });
           resolve();
@@ -66,14 +66,14 @@ export default function Index() {
 
     // Simpan ke Supabase
     const { data, error } = await supabase
-     .from('presentation_sessions')
-     .insert({
+      .from('presentation_sessions')
+      .insert({
         files: newFiles,
         total_slides: newFiles.length,
         current_slide: 0
       })
-     .select()
-     .single();
+      .select()
+      .single();
 
     if (error) {
       console.error('Error saving to Supabase:', error);
@@ -91,11 +91,11 @@ export default function Index() {
   useEffect(() => {
     const fetchLatestSession = async () => {
       const { data, error } = await supabase
-       .from('presentation_sessions')
-       .select('id, files')
-       .order('created_at', { ascending: false }) // <-- Fixed order method placement
-       .limit(1)
-       .single();
+        .from('presentation_sessions')
+        .select('id, files')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
 
       if (error) {
         console.error('Error fetching session:', error);
@@ -104,7 +104,7 @@ export default function Index() {
       
       if (data) {
         setSessionId(data.id);
-        setFiles(data.files);
+        setFiles(data.files || []);
       }
     };
     fetchLatestSession();
@@ -117,10 +117,10 @@ export default function Index() {
     }
 
     const { data, error } = await supabase
-     .from('presentation_sessions')
-     .select('*')
-     .eq('id', sessionId)
-     .single();
+      .from('presentation_sessions')
+      .select('files')
+      .eq('id', sessionId)
+      .single();
 
     if (error) {
       console.error('Error fetching session:', error);
@@ -128,14 +128,15 @@ export default function Index() {
       return;
     }
 
-    const filteredFiles = data.files.filter(file => file.id!== id);
+    const filteredFiles = data.files.filter(file => file.id !== id);
+    
     const { error: updateError } = await supabase
-     .from('presentation_sessions')
-     .update({ 
+      .from('presentation_sessions')
+      .update({ 
         files: filteredFiles,
         total_slides: filteredFiles.length
       })
-     .eq('id', sessionId);
+      .eq('id', sessionId);
 
     if (updateError) {
       console.error('Error updating session:', updateError);
@@ -167,19 +168,169 @@ export default function Index() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white p-6 md:p-12">
-      {/*... (UI elements) */}
+      <div className="max-w-4xl mx-auto">
+        <header className="mb-12 text-center">
+          <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+            Quick Kiwi Flip
+          </h1>
+          <p className="text-gray-400 text-lg">
+            Upload your presentation files and control them remotely
+          </p>
+        </header>
 
-      {files.map((file) => (
-        <div key={file.id} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10">
-          <div className="flex items-center gap-3 overflow-hidden">
-            {file.type === 'image'? <FileImage className="w-4 h-4 text-blue-400 shrink-0" /> : <FileSpreadsheet className="w-4 h-4 text-green-400 shrink-0" />}
-            <span className="text-sm truncate">{file.name}</span>
-          </div>
-          <Button variant="ghost" size="icon" onClick={() => removeFile(file.id)} className="text-gray-500 hover:text-red-400">
-            <Trash2 className="w-4 h-4" />
-          </Button>
+        <div className="grid md:grid-cols-2 gap-8 mb-12">
+          {/* Upload Section */}
+          <Card className="bg-white/5 border-white/10">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Upload className="w-5 h-5" />
+                Upload Files
+              </CardTitle>
+              <CardDescription>
+                Support for images and Excel files
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="border-2 border-dashed border-white/20 rounded-xl p-8 text-center hover:border-blue-500/50 transition-colors">
+                  <Input
+                    type="file"
+                    id="file-upload"
+                    multiple
+                    accept="image/*,.xlsx,.xls"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    disabled={isUploading}
+                  />
+                  <Label
+                    htmlFor="file-upload"
+                    className="cursor-pointer flex flex-col items-center gap-3"
+                  >
+                    <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center">
+                      <Upload className="w-8 h-8 text-blue-400" />
+                    </div>
+                    <div>
+                      <p className="font-medium">
+                        {isUploading ? 'Uploading...' : 'Click to upload or drag and drop'}
+                      </p>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Images or Excel files (max 10MB each)
+                      </p>
+                    </div>
+                  </Label>
+                </div>
+
+                {files.length > 0 && (
+                  <div className="space-y-2 mt-4">
+                    <h3 className="text-sm font-medium text-gray-400">
+                      Uploaded Files ({files.length})
+                    </h3>
+                    <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+                      {files.map((file) => (
+                        <div
+                          key={file.id}
+                          className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10"
+                        >
+                          <div className="flex items-center gap-3 overflow-hidden">
+                            {file.type === 'image' ? (
+                              <FileImage className="w-4 h-4 text-blue-400 shrink-0" />
+                            ) : (
+                              <FileSpreadsheet className="w-4 h-4 text-green-400 shrink-0" />
+                            )}
+                            <span className="text-sm truncate">{file.name}</span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeFile(file.id)}
+                            className="text-gray-500 hover:text-red-400"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Remote Control Section */}
+          <Card className="bg-white/5 border-white/10">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Smartphone className="w-5 h-5" />
+                Remote Control
+              </CardTitle>
+              <CardDescription>
+                Control your presentation from any device
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                <div className="text-center p-6 bg-white/5 rounded-xl border border-white/10">
+                  {sessionId ? (
+                    <>
+                      <div className="mb-4 flex justify-center">
+                        <QRCodeSVG
+                          value={`${window.location.origin}/remote/${sessionId}`}
+                          size={150}
+                          className="rounded-lg"
+                        />
+                      </div>
+                      <p className="text-sm text-gray-400">
+                        Scan with your phone to control
+                      </p>
+                      <p className="text-xs text-gray-500 mt-2 font-mono">
+                        {sessionId.slice(0, 8)}...
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-gray-500">
+                      Upload files first to generate a remote control link
+                    </p>
+                  )}
+                </div>
+
+                <Button
+                  onClick={startPresentation}
+                  disabled={!sessionId || files.length === 0}
+                  className="w-full bg-blue-600 hover:bg-blue-500 text-white py-6 text-lg font-semibold rounded-xl"
+                >
+                  <Play className="w-5 h-5 mr-2" />
+                  Start Presentation
+                </Button>
+
+                {sessionId && (
+                  <div className="text-center text-sm text-gray-400">
+                    <p>Session ID: {sessionId.slice(0, 8)}...</p>
+                    <p className="text-xs mt-1">
+                      Share this ID with others to collaborate
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
-      ))}
+
+        {/* Instructions */}
+        <Card className="bg-white/5 border-white/10">
+          <CardHeader>
+            <CardTitle>How to Use</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ol className="space-y-3 list-decimal list-inside text-gray-300">
+              <li>Upload your presentation files (images or Excel sheets)</li>
+              <li>Scan the QR code with your phone to open the remote control</li>
+              <li>Click "Start Presentation" to begin</li>
+              <li>Use the remote control to navigate slides</li>
+              <li>Share the session ID with collaborators</li>
+            </ol>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
