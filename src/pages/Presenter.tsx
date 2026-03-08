@@ -59,6 +59,11 @@ export default function Presenter() {
           }
         }
       )
+      .on('broadcast', { event: 'RESET_SESSION' }, () => {
+        setCurrentSlide(0);
+        setCurrentSheet(0);
+        setZoomLevel(1);
+      })
       .on('broadcast', { event: 'SCROLL' }, (payload) => {
         const scrollArea = document.getElementById('excel-scroll-area');
         if (scrollArea) {

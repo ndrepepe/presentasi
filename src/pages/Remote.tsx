@@ -74,21 +74,24 @@ export default function Remote() {
   const startFromBeginning = async () => {
     if (!sessionId) return;
     try {
+      // 1. Update Local State
       setCurrentSlide(0);
       setCurrentSheet(0);
+
+      // 2. Kirim Broadcast RESET (Instan)
+      if (channelRef.current && isConnected) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'RESET_SESSION',
+          payload: {}
+        });
+      }
+
+      // 3. Update Database (Sync)
       await supabase.from('presentation_sessions').update({ 
         current_slide: 0, 
         current_sheet: 0 
       }).eq('id', sessionId);
-      
-      // Kirim broadcast untuk reset zoom di presenter
-      if (channelRef.current && isConnected) {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'ZOOM',
-          payload: { direction: 'reset' } // Kita asumsikan presenter bisa handle reset
-        });
-      }
       
       toast.success("Presentasi dimulai dari awal");
     } catch (error: any) {
