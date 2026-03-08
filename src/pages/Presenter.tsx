@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { ExcelViewer } from '@/components/ExcelViewer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
-import { Smartphone, ChevronLeft, ChevronRight, X, Wifi, WifiOff } from 'lucide-react';
+import { Smartphone, ChevronLeft, ChevronRight, X, Wifi, WifiOff, Maximize } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export default function Presenter() {
@@ -15,6 +15,7 @@ export default function Presenter() {
   const [currentSheet, setCurrentSheet] = useState(0);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [isConnected, setIsConnected] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -51,7 +52,7 @@ export default function Presenter() {
           if (payload.new) {
             if (typeof payload.new.current_slide === 'number') {
               setCurrentSlide(payload.new.current_slide);
-              setZoomLevel(1); // Reset zoom saat ganti slide
+              setZoomLevel(1);
             }
             if (typeof payload.new.current_sheet === 'number') setCurrentSheet(payload.new.current_sheet);
             setSession((prev: any) => ({ ...prev, ...payload.new }));
@@ -75,12 +76,27 @@ export default function Presenter() {
           return Math.max(prev - 0.25, 1);
         });
       })
+      .on('broadcast', { event: 'FULLSCREEN' }, (payload) => {
+        if (payload.payload.action === 'enter') {
+          document.documentElement.requestFullscreen().catch(e => console.error(e));
+        } else {
+          if (document.fullscreenElement) {
+            document.exitFullscreen().catch(e => console.error(e));
+          }
+        }
+      })
       .subscribe((status) => {
         setIsConnected(status === 'SUBSCRIBED');
       });
 
+    const handleFsChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+
     return () => {
       supabase.removeChannel(channel);
+      document.removeEventListener('fullscreenchange', handleFsChange);
     };
   }, [sessionId, navigate]);
 
@@ -105,6 +121,14 @@ export default function Presenter() {
     setCurrentSheet(0);
     setZoomLevel(1);
     updateDB({ current_slide: prev, current_sheet: 0 });
+  };
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+    } else {
+      document.exitFullscreen();
+    }
   };
 
   if (!session) return <div className="min-h-screen bg-black flex items-center justify-center text-white">Loading...</div>;
@@ -159,24 +183,29 @@ export default function Presenter() {
         </div>
       </div>
 
-      <motion.div initial={{ y: 100 }} animate={{ y: 0 }} className="bg-black/80 backdrop-blur-md border-t border-white/10 p-4 flex items-center justify-between z-20">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></Button>
-          <div className="flex flex-col">
-            <div className="text-sm font-medium text-white">Slide {currentSlide + 1} of {session.total_slides}</div>
-            <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider">
-              {isConnected ? <span className="text-green-400 flex items-center gap-1"><Wifi className="w-3 h-3" /> Live</span> : <span className="text-red-400 flex items-center gap-1"><WifiOff className="w-3 h-3" /> Offline</span>}
-              {zoomLevel > 1 && <span className="text-blue-400 ml-2">Zoom: {zoomLevel}x</span>}
+      {!isFullscreen && (
+        <motion.div initial={{ y: 100 }} animate={{ y: 0 }} className="bg-black/80 backdrop-blur-md border-t border-white/10 p-4 flex items-center justify-between z-20">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></Button>
+            <div className="flex flex-col">
+              <div className="text-sm font-medium text-white">Slide {currentSlide + 1} of {session.total_slides}</div>
+              <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider">
+                {isConnected ? <span className="text-green-400 flex items-center gap-1"><Wifi className="w-3 h-3" /> Live</span> : <span className="text-red-400 flex items-center gap-1"><WifiOff className="w-3 h-3" /> Offline</span>}
+                {zoomLevel > 1 && <span className="text-blue-400 ml-2">Zoom: {zoomLevel}x</span>}
+              </div>
             </div>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="group relative">
-            <Button variant="outline" size="sm" className="bg-white/5 border-white/10 text-white gap-2"><Smartphone className="w-4 h-4" /> Remote</Button>
-            <div className="absolute bottom-full right-0 mb-4 p-4 bg-white rounded-xl shadow-2xl hidden group-hover:block"><QRCodeSVG value={remoteUrl} size={150} /></div>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={toggleFullscreen} className="text-gray-400 hover:text-white mr-2">
+              <Maximize className="w-5 h-5" />
+            </Button>
+            <div className="group relative">
+              <Button variant="outline" size="sm" className="bg-white/5 border-white/10 text-white gap-2"><Smartphone className="w-4 h-4" /> Remote</Button>
+              <div className="absolute bottom-full right-0 mb-4 p-4 bg-white rounded-xl shadow-2xl hidden group-hover:block"><QRCodeSVG value={remoteUrl} size={150} /></div>
+            </div>
           </div>
-        </div>
-      </motion.div>
+        </motion.div>
+      )}
     </div>
   );
 }

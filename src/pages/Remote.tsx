@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { ChevronLeft, ChevronRight, Smartphone, RefreshCw, Wifi, WifiOff, Layers, FileSpreadsheet, ChevronUp, ChevronDown, ZoomIn, ZoomOut } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Smartphone, RefreshCw, Wifi, WifiOff, Layers, FileSpreadsheet, ChevronUp, ChevronDown, ZoomIn, ZoomOut, Maximize, Minimize } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
@@ -102,6 +102,19 @@ export default function Remote() {
     }
   };
 
+  const sendFullscreen = (action: 'enter' | 'exit') => {
+    if (channelRef.current && isConnected) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'FULLSCREEN',
+        payload: { action }
+      });
+      toast.success(action === 'enter' ? "Masuk Layar Penuh" : "Keluar Layar Penuh");
+    } else {
+      toast.error("Tidak terhubung ke presenter");
+    }
+  };
+
   if (isLoading) return <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center text-white p-6"><RefreshCw className="w-8 h-8 animate-spin text-blue-500 mb-4" /><p>Menghubungkan...</p></div>;
 
   const currentFile = session.files[currentSlide];
@@ -122,6 +135,24 @@ export default function Remote() {
       </header>
 
       <main className="flex-1 flex flex-col justify-center gap-6">
+        {/* Fullscreen Controls */}
+        <div className="grid grid-cols-2 gap-4">
+          <Button 
+            variant="outline" 
+            className="bg-white/5 border-white/10 h-12 rounded-xl text-xs gap-2 active:scale-95 transition-transform"
+            onClick={() => sendFullscreen('exit')}
+          >
+            <Minimize className="w-4 h-4" /> Close FS
+          </Button>
+          <Button 
+            variant="outline" 
+            className="bg-purple-600/20 border-purple-500/30 hover:bg-purple-600/30 h-12 rounded-xl text-xs gap-2 text-purple-400 active:scale-95 transition-transform"
+            onClick={() => sendFullscreen('enter')}
+          >
+            <Maximize className="w-4 h-4" /> Full Screen
+          </Button>
+        </div>
+
         <div className="aspect-video bg-white/5 rounded-2xl border border-white/10 flex flex-col items-center justify-center overflow-hidden relative shadow-2xl">
           {isExcel ? (
             <div className="flex flex-col items-center gap-3">
@@ -145,7 +176,6 @@ export default function Remote() {
           )}
         </div>
 
-        {/* Zoom Controls (Hanya muncul jika Gambar) */}
         {isImage && (
           <div className="space-y-3">
             <div className="flex items-center justify-center gap-2 text-gray-500">
@@ -171,7 +201,6 @@ export default function Remote() {
           </div>
         )}
 
-        {/* Scroll Controls (Hanya muncul jika Excel) */}
         {isExcel && (
           <div className="space-y-3">
             <div className="flex items-center justify-center gap-2 text-gray-500">
