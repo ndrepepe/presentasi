@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { ChevronLeft, ChevronRight, Smartphone, RefreshCw, Wifi, WifiOff, Layers, FileSpreadsheet, ChevronUp, ChevronDown, ZoomIn, ZoomOut, Maximize, Minimize } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Smartphone, RefreshCw, Wifi, WifiOff, Layers, FileSpreadsheet, ChevronUp, ChevronDown, ZoomIn, ZoomOut, Maximize, Minimize, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
@@ -71,6 +71,31 @@ export default function Remote() {
     await supabase.from('presentation_sessions').update({ current_slide: newIndex, current_sheet: 0 }).eq('id', sessionId);
   };
 
+  const startFromBeginning = async () => {
+    if (!sessionId) return;
+    try {
+      setCurrentSlide(0);
+      setCurrentSheet(0);
+      await supabase.from('presentation_sessions').update({ 
+        current_slide: 0, 
+        current_sheet: 0 
+      }).eq('id', sessionId);
+      
+      // Kirim broadcast untuk reset zoom di presenter
+      if (channelRef.current && isConnected) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'ZOOM',
+          payload: { direction: 'reset' } // Kita asumsikan presenter bisa handle reset
+        });
+      }
+      
+      toast.success("Presentasi dimulai dari awal");
+    } catch (error: any) {
+      toast.error("Gagal memulai presentasi: " + error.message);
+    }
+  };
+
   const updateSheet = async (newSheetIndex: number) => {
     const currentFile = session.files[currentSlide];
     if (!currentFile || !currentFile.sheetCount || newSheetIndex < 0 || newSheetIndex >= currentFile.sheetCount) return;
@@ -135,6 +160,15 @@ export default function Remote() {
       </header>
 
       <main className="flex-1 flex flex-col justify-center gap-6">
+        {/* Start Presentation Button */}
+        <Button 
+          onClick={startFromBeginning}
+          className="w-full bg-blue-600 hover:bg-blue-500 text-white h-14 rounded-2xl font-bold text-lg shadow-lg shadow-blue-600/20 active:scale-95 transition-all"
+        >
+          <Play className="w-5 h-5 mr-2 fill-current" />
+          Mulai Presentasi
+        </Button>
+
         {/* Fullscreen Controls */}
         <div className="grid grid-cols-2 gap-4">
           <Button 

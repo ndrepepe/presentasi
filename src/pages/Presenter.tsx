@@ -72,6 +72,7 @@ export default function Presenter() {
       })
       .on('broadcast', { event: 'ZOOM' }, (payload) => {
         setZoomLevel(prev => {
+          if (payload.payload.direction === 'reset') return 1;
           if (payload.payload.direction === 'in') return Math.min(prev + 0.25, 3);
           return Math.max(prev - 0.25, 1);
         });
