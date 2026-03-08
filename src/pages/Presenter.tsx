@@ -37,8 +37,9 @@ export default function Presenter() {
 
     fetchSession();
 
+    // Menggunakan nama channel yang sama dengan Remote: 'presentation-'
     const channel = supabase
-      .channel(`session-${sessionId}`)
+      .channel(`presentation-${sessionId}`)
       .on(
         'postgres_changes',
         {
@@ -55,15 +56,15 @@ export default function Presenter() {
           }
         }
       )
-      // Mendengarkan perintah scroll dari Remote
       .on('broadcast', { event: 'SCROLL' }, (payload) => {
+        console.log("Scroll command received:", payload);
         const scrollArea = document.getElementById('excel-scroll-area');
         if (scrollArea) {
-          const scrollAmount = 400; // Jarak scroll per klik
+          const scrollAmount = 300; 
           if (payload.payload.direction === 'down') {
-            scrollArea.scrollTop += scrollAmount;
+            scrollArea.scrollBy({ top: scrollAmount, behavior: 'smooth' });
           } else {
-            scrollArea.scrollTop -= scrollAmount;
+            scrollArea.scrollBy({ top: -scrollAmount, behavior: 'smooth' });
           }
         }
       })

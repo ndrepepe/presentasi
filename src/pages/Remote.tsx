@@ -36,8 +36,9 @@ export default function Remote() {
 
     fetchSession();
 
+    // Menggunakan nama channel yang sama dengan Presenter: 'presentation-'
     const channel = supabase
-      .channel(`remote-${sessionId}`)
+      .channel(`presentation-${sessionId}`)
       .on(
         'postgres_changes',
         {
@@ -79,12 +80,14 @@ export default function Remote() {
   };
 
   const sendScroll = (direction: 'up' | 'down') => {
-    if (channelRef.current) {
+    if (channelRef.current && isConnected) {
       channelRef.current.send({
         type: 'broadcast',
         event: 'SCROLL',
         payload: { direction }
       });
+    } else {
+      toast.error("Tidak terhubung ke presenter");
     }
   };
 
@@ -107,7 +110,6 @@ export default function Remote() {
       </header>
 
       <main className="flex-1 flex flex-col justify-center gap-6">
-        {/* Preview Area */}
         <div className="aspect-video bg-white/5 rounded-2xl border border-white/10 flex flex-col items-center justify-center overflow-hidden relative shadow-2xl">
           {isExcel ? (
             <div className="flex flex-col items-center gap-3">
@@ -131,7 +133,6 @@ export default function Remote() {
           )}
         </div>
 
-        {/* Scroll Controls (Hanya muncul jika Excel) */}
         {isExcel && (
           <div className="space-y-3">
             <div className="flex items-center justify-center gap-2 text-gray-500">
@@ -157,7 +158,6 @@ export default function Remote() {
           </div>
         )}
 
-        {/* Sheet Navigation */}
         {hasMultipleSheets && (
           <div className="space-y-3">
             <div className="flex items-center justify-center gap-2 text-gray-500">
@@ -185,7 +185,6 @@ export default function Remote() {
           </div>
         )}
 
-        {/* Slide Navigation */}
         <div className="space-y-3">
           <div className="flex items-center justify-center gap-2 text-gray-500">
             <Smartphone className="w-3 h-3" />
