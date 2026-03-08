@@ -4,19 +4,17 @@ import { supabase } from '@/integrations/supabase/client';
 import { ExcelViewer } from '@/components/ExcelViewer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
-import { Maximize, Minimize, Smartphone, ChevronLeft, ChevronRight, X, Wifi, WifiOff, Copy, Check } from 'lucide-react';
+import { Smartphone, ChevronLeft, ChevronRight, X, Wifi, WifiOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
 
 export default function Presenter() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
   const [session, setSession] = useState<any>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [showControls, setShowControls] = useState(true);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [currentSheet, setCurrentSheet] = useState(0);
+  const [showControls] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -29,12 +27,12 @@ export default function Presenter() {
         .single();
 
       if (error) {
-        console.error("Error fetching session:", error);
         navigate('/');
         return;
       }
       setSession(data);
       setCurrentSlide(data.current_slide);
+      setCurrentSheet(data.current_sheet || 0);
     };
 
     fetchSession();
@@ -50,8 +48,9 @@ export default function Presenter() {
           filter: `id=eq.${sessionId}`,
         },
         (payload) => {
-          if (payload.new && typeof payload.new.current_slide === 'number') {
-            setCurrentSlide(payload.new.current_slide);
+          if (payload.new) {
+            if (typeof payload.new.current_slide === 'number') setCurrentSlide(payload.new.current_slide);
+            if (typeof payload.new.current_sheet === 'number') setCurrentSheet(payload.new.current_sheet);
             setSession((prev: any) => ({ ...prev, ...payload.new }));
           }
         }
@@ -65,78 +64,49 @@ export default function Presenter() {
     };
   }, [sessionId, navigate]);
 
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen();
-      setIsFullscreen(true);
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-        setIsFullscreen(false);
-      }
-    }
-  };
-
-  const updateSlideInDB = async (newIndex: number) => {
+  const updateDB = async (updates: any) => {
     if (!sessionId) return;
-    const { error } = await supabase
-      .from('presentation_sessions')
-      .update({ current_slide: newIndex })
-      .eq('id', sessionId);
-    
-    if (error) {
-      toast.error("Gagal memperbarui slide");
-    }
+    await supabase.from('presentation_sessions').update(updates).eq('id', sessionId);
   };
 
   const nextSlide = () => {
     if (!session || currentSlide >= session.files.length - 1) return;
     const next = currentSlide + 1;
     setCurrentSlide(next);
-    updateSlideInDB(next);
+    setCurrentSheet(0);
+    updateDB({ current_slide: next, current_sheet: 0 });
   };
 
   const prevSlide = () => {
     if (!session || currentSlide <= 0) return;
     const prev = currentSlide - 1;
     setCurrentSlide(prev);
-    updateSlideInDB(prev);
-  };
-
-  const remoteUrl = `${window.location.origin}/remote/${sessionId}`;
-
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(remoteUrl);
-    setCopied(true);
-    toast.success("Link disalin");
-    setTimeout(() => setCopied(false), 2000);
+    setCurrentSheet(0);
+    updateDB({ current_slide: prev, current_sheet: 0 });
   };
 
   if (!session) return <div className="min-h-screen bg-black flex items-center justify-center text-white">Loading...</div>;
 
   const currentFile = session.files[currentSlide];
+  const remoteUrl = `${window.location.origin}/remote/${sessionId}`;
 
   return (
     <div className="fixed inset-0 bg-black overflow-hidden flex flex-col">
       <div className="flex-1 relative flex items-center justify-center p-4 md:p-8 min-h-0">
         <AnimatePresence mode="wait">
           <motion.div
-            key={currentSlide}
-            initial={{ opacity: 0, scale: 0.95 }}
+            key={`${currentSlide}-${currentSheet}`}
+            initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 1.05 }}
-            transition={{ duration: 0.3 }}
+            exit={{ opacity: 0, scale: 1.02 }}
+            transition={{ duration: 0.2 }}
             className="w-full h-full flex items-center justify-center overflow-hidden"
           >
             {currentFile?.type === 'image' ? (
-              <img
-                src={currentFile.url}
-                alt={currentFile.name}
-                className="max-w-full max-h-full object-contain shadow-2xl rounded-lg"
-              />
+              <img src={currentFile.url} alt={currentFile.name} className="max-w-full max-h-full object-contain shadow-2xl rounded-lg" />
             ) : currentFile ? (
               <div className="w-full h-full overflow-hidden flex flex-col">
-                <ExcelViewer data={[currentFile.url]} />
+                <ExcelViewer data={[currentFile.url]} activeSheetIndex={currentSheet} />
               </div>
             ) : (
               <div className="text-white">Slide tidak ditemukan</div>
@@ -158,73 +128,25 @@ export default function Presenter() {
 
       <AnimatePresence>
         {showControls && (
-          <motion.div
-            initial={{ y: 100 }}
-            animate={{ y: 0 }}
-            exit={{ y: 100 }}
-            className="bg-black/80 backdrop-blur-md border-t border-white/10 p-4 flex items-center justify-between"
-          >
+          <motion.div initial={{ y: 100 }} animate={{ y: 0 }} exit={{ y: 100 }} className="bg-black/80 backdrop-blur-md border-t border-white/10 p-4 flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="text-gray-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </Button>
+              <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></Button>
               <div className="flex flex-col">
-                <div className="text-sm font-medium text-white">
-                  Slide {currentSlide + 1} of {session.total_slides}
-                </div>
+                <div className="text-sm font-medium text-white">Slide {currentSlide + 1} of {session.total_slides}</div>
                 <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider">
-                  {isConnected ? (
-                    <span className="text-green-400 flex items-center gap-1"><Wifi className="w-3 h-3" /> Live</span>
-                  ) : (
-                    <span className="text-red-400 flex items-center gap-1"><WifiOff className="w-3 h-3" /> Offline</span>
-                  )}
+                  {isConnected ? <span className="text-green-400 flex items-center gap-1"><Wifi className="w-3 h-3" /> Live</span> : <span className="text-red-400 flex items-center gap-1"><WifiOff className="w-3 h-3" /> Offline</span>}
                 </div>
               </div>
             </div>
-
             <div className="flex items-center gap-2">
               <div className="group relative">
-                <Button variant="outline" size="sm" className="bg-white/5 border-white/10 text-white gap-2">
-                  <Smartphone className="w-4 h-4" />
-                  Remote
-                </Button>
-                <div className="absolute bottom-full right-0 mb-4 p-4 bg-white rounded-xl shadow-2xl hidden group-hover:block w-48">
-                  <div className="text-black text-center space-y-3">
-                    <div className="flex justify-center">
-                      <QRCodeSVG value={remoteUrl} size={140} />
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-[10px] text-gray-500 break-all leading-tight">
-                        {remoteUrl}
-                      </p>
-                      <Button 
-                        variant="secondary" 
-                        size="sm" 
-                        className="w-full h-7 text-[10px] gap-1"
-                        onClick={copyToClipboard}
-                      >
-                        {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                        Salin Link
-                      </Button>
-                    </div>
-                  </div>
-                </div>
+                <Button variant="outline" size="sm" className="bg-white/5 border-white/10 text-white gap-2"><Smartphone className="w-4 h-4" /> Remote</Button>
+                <div className="absolute bottom-full right-0 mb-4 p-4 bg-white rounded-xl shadow-2xl hidden group-hover:block"><QRCodeSVG value={remoteUrl} size={150} /></div>
               </div>
-              <Button variant="outline" size="sm" onClick={toggleFullscreen} className="bg-white/5 border-white/10 text-white gap-2">
-                {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
-                {isFullscreen ? 'Exit' : 'Full'}
-              </Button>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-
-      <button
-        onClick={() => setShowControls(!showControls)}
-        className="fixed bottom-4 right-4 w-8 h-8 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white/50 hover:text-white transition-all z-50"
-      >
-        {showControls ? <ChevronRight className="w-4 h-4 rotate-90" /> : <ChevronLeft className="w-4 h-4 rotate-90" />}
-      </button>
     </div>
   );
 }
