@@ -40,7 +40,6 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({ data, activeSheetIndex
   if (isLoading) return <div className="p-4 text-white">Loading Excel data...</div>;
   if (sheets.length === 0) return <div className="p-4 text-white">No Excel data available</div>;
 
-  // Pastikan index tidak out of bounds
   const safeIndex = Math.min(Math.max(0, activeSheetIndex), sheets.length - 1);
 
   const formatCellValue = (value: any) => {
@@ -66,7 +65,8 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({ data, activeSheetIndex
           </div>
         ))}
       </div>
-      <div className="flex-1 overflow-auto p-4 custom-scrollbar">
+      {/* Tambahkan ID excel-scroll-area di sini */}
+      <div id="excel-scroll-area" className="flex-1 overflow-auto p-4 custom-scrollbar scroll-smooth">
         <table className="w-full border-collapse text-sm text-white">
           <tbody>
             {sheets[safeIndex].data.map((row, rowIndex) => (

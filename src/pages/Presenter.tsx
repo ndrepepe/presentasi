@@ -55,6 +55,18 @@ export default function Presenter() {
           }
         }
       )
+      // Mendengarkan perintah scroll dari Remote
+      .on('broadcast', { event: 'SCROLL' }, (payload) => {
+        const scrollArea = document.getElementById('excel-scroll-area');
+        if (scrollArea) {
+          const scrollAmount = 400; // Jarak scroll per klik
+          if (payload.payload.direction === 'down') {
+            scrollArea.scrollTop += scrollAmount;
+          } else {
+            scrollArea.scrollTop -= scrollAmount;
+          }
+        }
+      })
       .subscribe((status) => {
         setIsConnected(status === 'SUBSCRIBED');
       });

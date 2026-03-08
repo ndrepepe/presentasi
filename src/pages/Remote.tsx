@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { ChevronLeft, ChevronRight, Smartphone, RefreshCw, Wifi, WifiOff, Layers, FileSpreadsheet } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Smartphone, RefreshCw, Wifi, WifiOff, Layers, FileSpreadsheet, ChevronUp, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
@@ -12,6 +12,7 @@ export default function Remote() {
   const [currentSheet, setCurrentSheet] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
+  const channelRef = useRef<any>(null);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -47,18 +48,16 @@ export default function Remote() {
         },
         (payload) => {
           if (payload.new) {
-            if (typeof payload.new.current_slide === 'number') {
-              setCurrentSlide(payload.new.current_slide);
-            }
-            if (typeof payload.new.current_sheet === 'number') {
-              setCurrentSheet(payload.new.current_sheet);
-            }
+            if (typeof payload.new.current_slide === 'number') setCurrentSlide(payload.new.current_slide);
+            if (typeof payload.new.current_sheet === 'number') setCurrentSheet(payload.new.current_sheet);
           }
         }
       )
       .subscribe((status) => {
         setIsConnected(status === 'SUBSCRIBED');
       });
+
+    channelRef.current = channel;
 
     return () => {
       supabase.removeChannel(channel);
@@ -67,71 +66,47 @@ export default function Remote() {
 
   const updateSlide = async (newIndex: number) => {
     if (!session || newIndex < 0 || newIndex >= session.total_slides) return;
-    
-    // Optimistic update
     setCurrentSlide(newIndex);
     setCurrentSheet(0);
-    
-    const { error } = await supabase
-      .from('presentation_sessions')
-      .update({ 
-        current_slide: newIndex, 
-        current_sheet: 0 
-      })
-      .eq('id', sessionId);
-      
-    if (error) toast.error("Gagal pindah slide");
+    await supabase.from('presentation_sessions').update({ current_slide: newIndex, current_sheet: 0 }).eq('id', sessionId);
   };
 
   const updateSheet = async (newSheetIndex: number) => {
     const currentFile = session.files[currentSlide];
-    if (!currentFile || !currentFile.sheetCount) return;
-    if (newSheetIndex < 0 || newSheetIndex >= currentFile.sheetCount) return;
-    
-    // Optimistic update
+    if (!currentFile || !currentFile.sheetCount || newSheetIndex < 0 || newSheetIndex >= currentFile.sheetCount) return;
     setCurrentSheet(newSheetIndex);
-    
-    const { error } = await supabase
-      .from('presentation_sessions')
-      .update({ current_sheet: newSheetIndex })
-      .eq('id', sessionId);
-      
-    if (error) toast.error("Gagal pindah sheet");
+    await supabase.from('presentation_sessions').update({ current_sheet: newSheetIndex }).eq('id', sessionId);
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center text-white p-6">
-        <RefreshCw className="w-8 h-8 animate-spin text-blue-500 mb-4" />
-        <p>Menghubungkan ke Sesi...</p>
-      </div>
-    );
-  }
+  const sendScroll = (direction: 'up' | 'down') => {
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'SCROLL',
+        payload: { direction }
+      });
+    }
+  };
 
-  const currentFile = session?.files?.[currentSlide];
+  if (isLoading) return <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center text-white p-6"><RefreshCw className="w-8 h-8 animate-spin text-blue-500 mb-4" /><p>Menghubungkan...</p></div>;
+
+  const currentFile = session.files[currentSlide];
   const isExcel = currentFile?.type === 'excel';
-  const sheetCount = currentFile?.sheetCount || 0;
-  const hasMultipleSheets = isExcel && sheetCount > 1;
+  const hasMultipleSheets = isExcel && (currentFile.sheetCount || 0) > 1;
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col p-6 select-none">
       <header className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2">
-          <Smartphone className="w-6 h-6 text-blue-400" />
-          <h1 className="font-bold text-xl">Remote Control</h1>
-        </div>
+        <div className="flex items-center gap-2"><Smartphone className="w-6 h-6 text-blue-400" /><h1 className="font-bold text-xl">Remote</h1></div>
         <div className="flex items-center gap-2">
           <div className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded-full ${isConnected ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
-            {isConnected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />} 
-            {isConnected ? 'LIVE' : 'OFFLINE'}
+            {isConnected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />} {isConnected ? 'LIVE' : 'OFFLINE'}
           </div>
-          <div className="bg-white/10 px-3 py-1 rounded-full text-xs font-medium">
-            {currentSlide + 1} / {session.total_slides}
-          </div>
+          <div className="bg-white/10 px-3 py-1 rounded-full text-xs font-medium">{currentSlide + 1} / {session.total_slides}</div>
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col justify-center gap-8">
+      <main className="flex-1 flex flex-col justify-center gap-6">
         {/* Preview Area */}
         <div className="aspect-video bg-white/5 rounded-2xl border border-white/10 flex flex-col items-center justify-center overflow-hidden relative shadow-2xl">
           {isExcel ? (
@@ -142,17 +117,13 @@ export default function Remote() {
               <div className="text-center">
                 <p className="text-sm font-medium text-gray-300 truncate max-w-[200px]">{currentFile.name}</p>
                 <p className="text-[10px] text-green-400 uppercase tracking-widest mt-1">
-                  Sheet {currentSheet + 1} of {sheetCount}
+                  Sheet {currentSheet + 1} of {currentFile.sheetCount}
                 </p>
               </div>
             </div>
           ) : (
             <>
-              <img 
-                src={currentFile?.url} 
-                className="w-full h-full object-contain opacity-30 blur-[2px]" 
-                alt="Preview"
-              />
+              <img src={currentFile?.url} className="w-full h-full object-contain opacity-30 blur-[2px]" alt="Preview" />
               <div className="absolute inset-0 flex items-center justify-center">
                 <span className="text-7xl font-black text-white/80">{currentSlide + 1}</span>
               </div>
@@ -160,9 +131,35 @@ export default function Remote() {
           )}
         </div>
 
-        {/* Sheet Navigation (Hanya muncul jika Excel & > 1 sheet) */}
+        {/* Scroll Controls (Hanya muncul jika Excel) */}
+        {isExcel && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-center gap-2 text-gray-500">
+              <ChevronDown className="w-3 h-3" />
+              <p className="text-[10px] uppercase tracking-widest font-bold">Scroll Halaman</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Button 
+                variant="outline" 
+                className="bg-white/5 border-white/10 h-14 rounded-2xl text-xs gap-2 active:scale-95 transition-transform"
+                onClick={() => sendScroll('up')}
+              >
+                <ChevronUp className="w-5 h-5" /> Scroll Up
+              </Button>
+              <Button 
+                variant="outline" 
+                className="bg-white/5 border-white/10 h-14 rounded-2xl text-xs gap-2 active:scale-95 transition-transform"
+                onClick={() => sendScroll('down')}
+              >
+                <ChevronDown className="w-5 h-5" /> Scroll Down
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Sheet Navigation */}
         {hasMultipleSheets && (
-          <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="space-y-3">
             <div className="flex items-center justify-center gap-2 text-gray-500">
               <Layers className="w-3 h-3" />
               <p className="text-[10px] uppercase tracking-widest font-bold">Navigasi Sheet</p>
@@ -180,7 +177,7 @@ export default function Remote() {
                 variant="outline" 
                 className="bg-green-600/20 border-green-500/30 hover:bg-green-600/30 h-14 rounded-2xl text-xs gap-2 text-green-400 active:scale-95 transition-transform"
                 onClick={() => updateSheet(currentSheet + 1)}
-                disabled={currentSheet === sheetCount - 1}
+                disabled={currentSheet === (currentFile.sheetCount || 1) - 1}
               >
                 Next Sheet <ChevronRight className="w-4 h-4" />
               </Button>
@@ -194,7 +191,7 @@ export default function Remote() {
             <Smartphone className="w-3 h-3" />
             <p className="text-[10px] uppercase tracking-widest font-bold">Navigasi Slide</p>
           </div>
-          <div className="grid grid-cols-2 gap-4 h-44">
+          <div className="grid grid-cols-2 gap-4 h-40">
             <Button 
               variant="outline" 
               className="h-full bg-white/5 border-white/10 rounded-[2rem] flex flex-col gap-3 active:scale-95 transition-transform" 
@@ -216,12 +213,6 @@ export default function Remote() {
           </div>
         </div>
       </main>
-
-      <footer className="mt-8 text-center">
-        <p className="text-[10px] text-gray-600 uppercase tracking-tighter">
-          Pepenio Remote System v2.0
-        </p>
-      </footer>
     </div>
   );
 }
