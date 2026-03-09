@@ -83,7 +83,8 @@ export default function Index() {
           .insert({
             files: newFiles,
             total_slides: newFiles.length,
-            current_slide: 0
+            current_slide: 0,
+            current_sheet: 0
           })
           .select()
           .single();
@@ -132,24 +133,28 @@ export default function Index() {
     }
   };
 
-  const startPresentation = () => {
+  const startPresentation = async () => {
     if (!sessionId || files.length === 0) {
       toast.error("Unggah file terlebih dahulu");
       return;
     }
-    resetCurrentSlide();
+    await resetSessionState();
     navigate(`/presenter/${sessionId}`);
   };
 
-  const resetCurrentSlide = async () => {
+  const resetSessionState = async () => {
     if (!sessionId) return;
     try {
+      // Reset slide ke 0 dan sheet ke 0
       await supabase
         .from('presentation_sessions')
-        .update({ current_slide: 0 })
+        .update({ 
+          current_slide: 0,
+          current_sheet: 0 
+        })
         .eq('id', sessionId);
     } catch (error: any) {
-      console.error("Error resetting slide:", error.message);
+      console.error("Error resetting session state:", error.message);
     }
   };
 
