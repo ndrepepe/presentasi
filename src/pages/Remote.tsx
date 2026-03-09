@@ -48,12 +48,13 @@ export default function Remote() {
         },
         (payload) => {
           if (payload.new) {
-            if (typeof payload.new.current_slide === 'number') setCurrentSlide(payload.new.current_slide);
-            if (typeof payload.new.current_sheet === 'number') setCurrentSheet(payload.new.current_sheet);
+            setCurrentSlide(payload.new.current_slide);
+            setCurrentSheet(payload.new.current_sheet || 0);
           }
         }
       )
       .subscribe((status) => {
+        console.log("[Remote] Subscription status:", status);
         setIsConnected(status === 'SUBSCRIBED');
       });
 
@@ -74,11 +75,9 @@ export default function Remote() {
   const startFromBeginning = async () => {
     if (!sessionId) return;
     try {
-      // 1. Update Local State
-      setCurrentSlide(0);
-      setCurrentSheet(0);
-
-      // 2. Kirim Broadcast RESET (Instan)
+      console.log("[Remote] Sending RESET_SESSION broadcast");
+      
+      // 1. Kirim Broadcast RESET (Instan)
       if (channelRef.current && isConnected) {
         channelRef.current.send({
           type: 'broadcast',
@@ -87,12 +86,14 @@ export default function Remote() {
         });
       }
 
-      // 3. Update Database (Sync)
+      // 2. Update Database (Sync)
       await supabase.from('presentation_sessions').update({ 
         current_slide: 0, 
         current_sheet: 0 
       }).eq('id', sessionId);
       
+      setCurrentSlide(0);
+      setCurrentSheet(0);
       toast.success("Presentasi dimulai dari awal");
     } catch (error: any) {
       toast.error("Gagal memulai presentasi: " + error.message);
@@ -132,6 +133,7 @@ export default function Remote() {
 
   const sendFullscreen = (action: 'enter' | 'exit') => {
     if (channelRef.current && isConnected) {
+      console.log("[Remote] Sending FULLSCREEN broadcast:", action);
       channelRef.current.send({
         type: 'broadcast',
         event: 'FULLSCREEN',

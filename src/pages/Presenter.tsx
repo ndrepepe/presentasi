@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { ExcelViewer } from '@/components/ExcelViewer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
-import { Smartphone, ChevronLeft, ChevronRight, X, Wifi, WifiOff, Maximize } from 'lucide-react';
+import { Smartphone, ChevronLeft, ChevronRight, X, Wifi, WifiOff, Maximize, MousePointer2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export default function Presenter() {
@@ -16,6 +16,7 @@ export default function Presenter() {
   const [zoomLevel, setZoomLevel] = useState(1);
   const [isConnected, setIsConnected] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [hasInteracted, setHasInteracted] = useState(false);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -49,17 +50,16 @@ export default function Presenter() {
           filter: `id=eq.${sessionId}`,
         },
         (payload) => {
+          console.log("[Presenter] Database update received", payload.new);
           if (payload.new) {
-            if (typeof payload.new.current_slide === 'number') {
-              setCurrentSlide(payload.new.current_slide);
-              setZoomLevel(1);
-            }
-            if (typeof payload.new.current_sheet === 'number') setCurrentSheet(payload.new.current_sheet);
+            setCurrentSlide(payload.new.current_slide);
+            setCurrentSheet(payload.new.current_sheet || 0);
             setSession((prev: any) => ({ ...prev, ...payload.new }));
           }
         }
       )
       .on('broadcast', { event: 'RESET_SESSION' }, () => {
+        console.log("[Presenter] Broadcast RESET received");
         setCurrentSlide(0);
         setCurrentSheet(0);
         setZoomLevel(1);
@@ -83,15 +83,19 @@ export default function Presenter() {
         });
       })
       .on('broadcast', { event: 'FULLSCREEN' }, (payload) => {
+        console.log("[Presenter] Broadcast FULLSCREEN received", payload.payload.action);
         if (payload.payload.action === 'enter') {
-          document.documentElement.requestFullscreen().catch(e => console.error(e));
+          document.documentElement.requestFullscreen().catch(e => {
+            console.error("[Presenter] Fullscreen error (likely no user gesture):", e);
+          });
         } else {
           if (document.fullscreenElement) {
-            document.exitFullscreen().catch(e => console.error(e));
+            document.exitFullscreen().catch(e => console.error("[Presenter] Exit Fullscreen error:", e));
           }
         }
       })
       .subscribe((status) => {
+        console.log("[Presenter] Subscription status:", status);
         setIsConnected(status === 'SUBSCRIBED');
       });
 
@@ -105,6 +109,10 @@ export default function Presenter() {
       document.removeEventListener('fullscreenchange', handleFsChange);
     };
   }, [sessionId, navigate]);
+
+  const handleInteraction = () => {
+    setHasInteracted(true);
+  };
 
   const updateDB = async (updates: any) => {
     if (!sessionId) return;
@@ -143,7 +151,21 @@ export default function Presenter() {
   const remoteUrl = `${window.location.origin}/remote/${sessionId}`;
 
   return (
-    <div className="fixed inset-0 bg-black overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-black overflow-hidden flex flex-col" onClick={handleInteraction}>
+      {/* Overlay jika belum ada interaksi (Penting untuk Fullscreen) */}
+      {!hasInteracted && !isFullscreen && (
+        <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 text-center">
+          <div className="bg-white/10 p-8 rounded-3xl border border-white/20 max-w-md">
+            <MousePointer2 className="w-12 h-12 text-blue-400 mx-auto mb-4 animate-bounce" />
+            <h2 className="text-xl font-bold text-white mb-2">Klik Layar Ini Sekali</h2>
+            <p className="text-gray-400 text-sm">
+              Browser memerlukan satu klik di halaman ini agar fitur <b>Fullscreen Jarak Jauh</b> dari HP dapat berfungsi.
+            </p>
+            <Button onClick={handleInteraction} className="mt-6 bg-blue-600 hover:bg-blue-500">Siap, Mulai!</Button>
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 relative flex items-center justify-center p-4 md:p-8 min-h-0 overflow-auto custom-scrollbar">
         <AnimatePresence mode="wait">
           <motion.div
